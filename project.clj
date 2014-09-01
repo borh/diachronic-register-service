@@ -3,7 +3,7 @@
   :url "https://github.com/borh/diachronic-register-service"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.6.0"]
+  :dependencies [[org.clojure/clojure "1.7.0-alpha1"]
 
                  [com.datomic/datomic-free "0.9.4894" :exclusions [org.codehaus.plexus/plexus-utils org.apache.httpcomponents/httpclient org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core]]
 
