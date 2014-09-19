@@ -9,6 +9,8 @@
             [cljs.core.match]
             [cljs.core.async :as async :refer [<! >! put! chan]]
 
+            ;;[strokes :refer [d3]]
+
             [plumbing.core :refer [map-vals]]
             [om.core :as om :include-macros true]
             ;;[om-tools.dom :as dom :include-macros true]
@@ -16,9 +18,32 @@
             [om-tools.core :refer-macros [defcomponentk]]
             [schema.core :as s]
             [taoensso.encore :as encore]
-            [taoensso.sente :as sente :refer [cb-success?]]))
+            [taoensso.sente :as sente :refer [cb-success?]]
+            [taoensso.sente.packers.transit :as sente-transit]))
 
-(defschema GraphStats
+
+(comment
+  (strokes/bootstrap)
+
+  (sm/defn gen-graph
+    [id nodes links]
+    (println id "nodes = " nodes " links = " links)
+    (-> d3
+        (.select (str "#" id))
+        (.append "svg:g")
+        (.attr {:class "chart"
+                :width 400
+                :height 400})
+        (.-layout)
+        (.force)
+        (.nodes (clj->js nodes))
+        (.links (clj->js links))
+        (.size #js [400 400])
+        (.start))))
+
+(enable-console-print!)
+
+#_(defschema GraphStats
   {:common PersistentHashSet
    :a-only PersistentHashSet
    :b-only PersistentHashSet
