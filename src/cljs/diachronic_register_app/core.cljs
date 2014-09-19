@@ -72,60 +72,72 @@
          :metadata {:a nil
                     :b nil}}))
 
-;; https://github.com/seancorfield/om-sente/blob/master/src/cljs/om_sente/core.cljs
+(def packer
+  ;;"Defines our packing (serialization) format for client<->server comms."
+  ;;:edn ; Default
+  (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit deps
+  )
 
 (let [{:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-                                  {:type :auto})]
+                                  {:type :auto :packer packer})]
   (def chsk chsk)
   (def ch-chsk ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
   (def chsk-state state)) ; Watchable, read-only atom
 
-(enable-console-print!)
+(defmulti event-msg-handler :id) ; Dispatch on event-id
 
-(defn- event-handler [[id data :as ev] _]
-  (println "Event: %s" ev)
-  (match [id data]
-         [:chsk/state {:first-open? true}]
-         (do (swap! !app-state assoc :channel-state :ready)
-             (println "Channel socket successfully established!"))
+;; Wrap for logging, catching, etc.:
+(defn event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
+  (println "Event: " event)
+  (event-msg-handler ev-msg))
 
-         [:chsk/state new-state]
-         (println "Chsk state change: %s" new-state)
+(defmethod event-msg-handler :default ; Fallback
+  [{:as ev-msg :keys [event]}]
+  (println "Unhandled event: " event))
 
-         [:chsk/recv payload]
-         (println "Push event from server: %s" payload)
+(defmethod event-msg-handler :chsk/state
+  [{:as ev-msg :keys [?data]}]
+  (if (= ?data {:first-open? true})
+    (do (swap! !app-state assoc :channel-state :ready)
+        (println "Channel socket successfully established!"))
+    (println "Channel socket state change: " ?data)))
 
-         :else
-         (println "Unmatched event: %s" ev)))
+(defmethod event-msg-handler :chsk/recv
+  [{:as ev-msg :keys [?data]}]
+  (println "Push event from server: " ?data))
 
-(defonce chsk-router
-  (sente/start-chsk-router-loop! event-handler ch-chsk))
+(def chsk-router (atom nil))
+(defn stop-router! [] (when-let [stop-f @chsk-router] (stop-f)))
+(defn start-router! []
+  (stop-router!)
+  (reset! chsk-router (sente/start-chsk-router! ch-chsk event-msg-handler*)))
+(start-router!)
 
 (comment
   (defn send-text-on-enter
-    "When user presses ENTER, send the value of the field to the server
-and clear the field's input state."
-    [e owner state]
-    (when (== (.-keyCode e) 13)
-      (chsk-send! [:test/echo (:text state)])
-      (om/set-state! owner :text ""))))
+  "When user presses ENTER, send the value of the field to the server
+  and clear the field's input state."
+  [e owner state]
+  (when (== (.-keyCode e) 13)
+    (chsk-send! [:test/echo (:text state)])
+    (om/set-state! owner :text ""))))
 
-(sm/defn tree-facet
-  "Generates a tree facet showing only selected leaves and minimal path."
-  [tree]
-  [:ul ])
-
-(sm/defn or-facet
-  "Generates an OR facet showing only attributes."
-  [tree]
-  [:ul ])
-
-(sm/defn and-facet
-  "Generates an AND facet showing only selected attributes."
-  [tree]
-  [:ul ])
+;; (defn tree-facet
+;;   "Generates a tree facet showing only selected leaves and minimal path."
+;;   [tree]
+;;   [:ul ])
+;;
+;; (defn or-facet
+;;   "Generates an OR facet showing only attributes."
+;;   [tree]
+;;   [:ul ])
+;;
+;; (defn and-facet
+;;   "Generates an AND facet showing only selected attributes."
+;;   [tree]
+;;   [:ul ])
 
 (sm/defn selected-facets :- [{s/Keyword (s/enum [(s/enum s/Str s/Num)] s/Str s/Num)}]
   [metadata :- {s/Keyword {s/Keyword {(s/enum s/Str s/Num) {:name s/Str :checked s/Bool}}}}]
@@ -138,7 +150,7 @@ and clear the field's input state."
 
 (sm/defn search-lemma!
   [lemma cursor id]
-  ;;(println lemma)
+  (println lemma)
   (om/update! cursor [:search-state id] :loading)
   (let [payload (if (not= "" lemma)
                   (into [{:word/lemma lemma}]
@@ -187,7 +199,7 @@ and clear the field's input state."
                      (for-map [v vs] ;; vs should be dealt with based on datatype...
                          v {:name (str v) :checked false}))))))
 
-(defcomponentk facet-box
+(defcomponentk facet-box ;; TODO: https://github.com/sgrove/om-draggable
   "Renders facet box given metadata."
   [[:data metadata channel-state :as cursor] [:opts id]]
   (will-mount
@@ -273,7 +285,7 @@ and clear the field's input state."
      (case (-> cursor :search-state id)
        :loading [:p "Loading..."]
        :failed [:p "Search timed out. Please try again!"]
-       :done (if (not-empty (-> cursor :graph id))
+       :done (if (not-empty (-> cursor :graph id)) ;;(gen-graph "a-graph" (keys (-> cursor :graph id)) (-> cursor :graph id))
                [:table.table
                 [:thead [:tr [:th "Lemma"] [:th "Frequency"]]]
                 [:tbody
@@ -285,7 +297,7 @@ and clear the field's input state."
   "Component that displays a text field and sends it to the server when ENTER is pressed."
   [[:data lemma graph search-state metadata stats :as cursor] ;;:- {:lemma s/Str :graph {s/Str s/Num}}
    owner]
-  ;;(will-mount [_] (sente/chsk-reconnect! chsk))
+  #_(will-mount [_] (sente/chsk-reconnect! chsk))
   (render
    [_]
    (html
@@ -307,7 +319,7 @@ and clear the field's input state."
          [:button.btn.btn-default.navbar-btn [:a {:href "#"} "Help"]]
          [:button.btn.btn-default.navbar-btn [:a {:href "#"} "Reset"]]
          [:button.btn.btn-default.navbar-btn [:a {:href "#"} "Login"]]]
-        [:span.navbar-text.navbar-right "Signed as Anonymous"]]]]
+        [:span.navbar-text.navbar-right "Signed-in as Anonymous"]]]]
      [:div.page-header
       [:h1.text-center "Japanese Language Register Search"]]
      [:div.row
@@ -320,7 +332,7 @@ and clear the field's input state."
      [:div.row
       (->search-box cursor)]
      [:div.row
-      [:div.col-md-12
+      [:div.col-md-12 ;; TODO: do we want to visualize the 1.0 and 3.0 as a sorted line of words (order determined by some weight....)?
        (if stats
          (let [{:keys [common
                        a-only
@@ -368,7 +380,6 @@ and clear the field's input state."
   (om/root app
            !app-state
            {:target (.getElementById js/document "app")}))
-
 
 ;; Old
 
