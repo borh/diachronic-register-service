@@ -8,6 +8,9 @@
             [clojure.core.reducers :as r]
             [clojure.set :as set]
 
+            [loom.graph :as g]
+            [loom.alg :as a]
+
             [clj-mecab.parse :as parse]
             [corpus-utils.bccwj :as bccwj]
             [corpus-utils.kokken :as kokken]
