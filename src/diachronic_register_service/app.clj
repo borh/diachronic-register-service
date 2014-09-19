@@ -55,9 +55,9 @@
     (server/set-connection (-> db :connection))
     (-> component
         (assoc :server (server/start-api options))
-        (assoc :sente (sente/start-chsk-router-loop!
-                       server/event-msg-handler
-                       server/ch-chsk)))
+        (assoc :sente (sente/start-chsk-router!
+                       server/ch-chsk
+                       server/event-msg-handler*)))
     #_(let [{:keys [ch-recv send-fn ajax-post-fn
                   ajax-get-or-ws-handshake-fn connected-uids]}
           (sente/make-channel-socket! {})]

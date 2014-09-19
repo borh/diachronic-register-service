@@ -5,8 +5,11 @@
 
 
             [clojure.core.match :refer [match]]
+            ring.middleware.defaults
             [ring.middleware.anti-forgery :as ring-anti-forgery]
             [taoensso.sente :as sente]
+            [taoensso.sente.packers.transit :as sente-transit]
+            [prone.middleware :as prone]
             [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
             [hiccup.core :as hiccup]
             [hiccup.page :refer [html5 include-css include-js]]
@@ -31,13 +34,20 @@
 
 ;; Utils end
 
-(let [{:keys [ch-recv send-fn ajax-post-fn
-              ajax-get-or-ws-handshake-fn] :as sente-info}
-      (sente/make-channel-socket! {})]
+(def packer
+  "Defines our packing (serialization) format for client<->server comms."
+  ;; :edn ; Default
+  (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit deps
+  )
+
+(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+              connected-uids]}
+      (sente/make-channel-socket! {:packer packer})]
   (def ring-ajax-post   ajax-post-fn)
-  (def ring-ajax-get-ws ajax-get-or-ws-handshake-fn)
+  (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk          ch-recv)
-  (def chsk-send!       send-fn))
+  (def chsk-send!       send-fn)
+  (def connected-uids connected-uids))
 
 (declare connection)
 (defn set-connection [conn]
@@ -72,7 +82,25 @@
 
 ;; TODO https://github.com/metosin/compojure-api when exposing a public API
 
-(defroutes my-ring-handler
+(defroutes my-routes
+  (GET "/" req (landing-pg-handler req))
+  ;;
+  (GET "/chsk" req (ring-ajax-get-or-ws-handshake req))
+  (POST "/chsk" req (ring-ajax-post req))
+  (POST "/login" req (login! req))
+  ;;
+  (route/resources "/") ; Static files, notably public/main.js (our cljs target)
+  (route/not-found "<h1>Page not found</h1>"))
+
+(def my-ring-handler
+  (let [ring-defaults-config
+        (assoc-in ring.middleware.defaults/site-defaults [:security :anti-forgery]
+                  {:read-token (fn [req] (-> req :params :csrf-token))})]
+    (-> my-routes
+        (ring.middleware.defaults/wrap-defaults ring-defaults-config)
+        prone/wrap-exceptions)))
+
+#_(defroutes my-ring-handler
   (-> (routes
        (GET "/"       req (landing-pg-handler req))
        ;;
@@ -89,7 +117,8 @@
       (ring-anti-forgery/wrap-anti-forgery
        {:read-token (fn [req] (-> req :params :csrf-token))})
 
-      comp-handler/site))
+      comp-handler/site
+      prone/wrap-exceptions))
 
 (defn start-api
   "Take resources and server options, and spin up a server with http-kit"
@@ -101,30 +130,45 @@
      my-ring-handler)
    options))
 
-(defn event-msg-handler
-  [{:as ev-msg :keys [ring-req event ?reply-fn]} _]
+(defmulti event-msg-handler :id) ; Dispatch on event-id
+;; Wrap for logging, catching, etc.:
+(defn event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
+  (event-msg-handler ev-msg))
+
+(defmethod event-msg-handler :default ; Fallback
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
   (let [session (:session ring-req)
-        uid     (:uid session)
-        [id data :as ev] event]
+        uid (:uid session)]
+    (println "Unhandled event: " event)
+    (when-not (:dummy-reply-fn (meta ?reply-fn))
+      (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
 
-    (println "Event: %s" ev)
+(defmethod event-msg-handler :query/all-metadata
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (?reply-fn (doto (with-timeout 10000 (data/get-all-metadata connection)) println)))
 
-    (match [id data]
-           ;; TODO: Match your events here, reply when appropriate <...>
-           [:query/all-metadata _]
-           (?reply-fn (doto (with-timeout 10000 (data/get-all-metadata connection)) println))
+(defmethod event-msg-handler :query/lemma
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  ;; ordering?? more specific first... (i.e. topic >> corpus etc...)
+  (?reply-fn (doto (with-timeout 10000 (data/get-morpheme-graph-2 connection (doto ?data println)))
+               (comp println pr-str))))
 
-           [:query/lemma _] ;; ordering?? more specific first... (i.e. topic >> corpus etc...)
-           (?reply-fn (doto (with-timeout 10000 (data/get-morpheme-graph-2 connection (doto data println)))
-                        (comp println pr-str)))
+(defmethod event-msg-handler :query/graphs
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (?reply-fn (with-timeout 10000 (data/get-graphs connection ?data))))
 
-           [:query/graphs _] (?reply-fn (with-timeout 10000 (data/get-graphs connection data)))
+(defmethod event-msg-handler :chsk/ws-ping
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (println "WebSocket Ping received."))
 
-           [:cursor/tx _] (println data)
-           [:chsk/send _] (println data)
-           [:chsk/ws-ping _] (println "WebSocket Ping received." data)
+(defmethod event-msg-handler :chsk/uidport-close
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (println "Port closed. Connected uids: " @connected-uids))
 
-           :else
-           (do (println "Unmatched event: %s" ev)
-               (when-not (:dummy-reply-fn? (meta ?reply-fn))
-                 (?reply-fn {:umatched-event-as-echoed-from-from-server ev}))))))
+(defmethod event-msg-handler :chsk/uidport-open
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (println "Port opened. Connected uids: " @connected-uids))
+
+(defmethod event-msg-handler :chsk/send
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (println "Sending: " ?data))
