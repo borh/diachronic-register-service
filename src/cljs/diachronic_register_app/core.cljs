@@ -63,7 +63,7 @@
 (def !app-state
   "All application state."
   (atom {:channel-state nil
-         :lemma "あ"
+         :lemma ""
          :stats nil
          :graph {:a {}
                  :b {}}
