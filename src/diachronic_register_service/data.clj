@@ -122,7 +122,7 @@
   "Should generate collocations matching specified relation and commit them to the database."
   [connection :- s/Any
    relation-fn :- clojure.lang.IFn]
-  (d/q '{:find [(diachronic-register-service.data/extract-collocations 2 ?lemma)]
+  (d/q '{:find [(diachronic-register-service.data/extract-collocations 2 ?lemma)] ; <- relation-fn
          :with [?sentence]
          :where [;;[?paragraph :paragraph/document ?document]
                  ;;[?paragraph :paragraph/sentences ?sentence]
@@ -152,7 +152,7 @@
    ds]
   ;; FIXME this implements AND search, while we really want OR+AND+NOT search (or both?)!
   (println "Filtering... " e-or-v rules)
-  (r/reduce
+  (r/fold
    (r/monoid
     (fn [es rule]
       (let [[rule-k rule-v] (first rule)]
@@ -171,13 +171,14 @@
        (group-by (comp keyword namespace ffirst))))
 
 (sm/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
+  "Returns the frequency distribution of given facet. Specifying a lemma will return that lemma's frequency, otherwise it returns all lemma within the facet."
   [connection
    facets :- [{s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)}]]
   (let [db (d/db connection)
         facets (categorize-rules facets)
         first-rule (ffirst (:document facets)) ;; :document/* only
         rest-rules (into [] (rest (:document facets)))]
-    (println facets "\n" first-rule)
+    ;(println "Facets: " facets "\n" first-rule)
     (->> first-rule ;; The first rule to search the index with. Should be a good discriminator for the final result.
          (apply d/datoms db :avet)
          (?>> (not-empty rest-rules) (filter-with-rules db rest-rules :e))
@@ -191,11 +192,16 @@
          (r/map (fn [{:keys [v]}] (:word/lemma (d/entity db v))))
          (into [])
          frequencies)))
+(comment
+  (s/with-fn-validation (get-morpheme-graph-2 (-> diachronic-register-service.user/system :db :connection) [{:word/lemma "言う"} {:document/corpus "BCCWJ"} {:document/subcorpus "PM"}])))
+
+;; Search strategy for comparing a word's cooccurrence distribution between two facets:
+;; 1.  Prepare two datastructures (String->Num maps) to hold the data for both facets. Start at the word level, iterate through all the sentences, and based on their metadata, add to relevant facet datastructure.
 
 (sm/defn get-graphs :- {:data [{s/Str s/Num}]
                         :stats stats/GraphStats}
   [connection :- Connection
-   facets-seq :- [[{s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)}]]]
+   facets-seq :- [[{s/Keyword s/Any}]]]
   (println connection (class connection) (type connection))
   (let [data (mapv (partial get-morpheme-graph-2 connection) facets-seq)]
     {:data data
@@ -218,11 +224,13 @@
   [connection
    facets :- (s/maybe {s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)})]
   (let [db (d/db connection)
-        first-rule (ffirst facets) ;; :word/* only
-        rest-rules (into [] (rest facets))]
+        facets (categorize-rules facets)
+        first-rule (ffirst (:word facets)) ;; :word/* only
+        rest-rules (into [] (rest (:document facets)))]
+    (println first-rule)
     (->> first-rule
          (apply d/datoms db :avet)
-         (?>> rest-rules (filter-with-rules db rest-rules))
+         (?>> rest-rules (filter-with-rules db rest-rules :v))
          (r/mapcat (fn [{:keys [e]}] (d/datoms db :vaet e :sentence/words)))
          (r/mapcat (fn [{:keys [e]}] (d/datoms db :vaet e :paragraph/sentences)))
          (r/mapcat (fn [{:keys [e]}] (d/datoms db :vaet e :document/paragraphs)))
