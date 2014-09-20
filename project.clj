@@ -34,7 +34,7 @@
                  [prone "0.6.0"]
                  [compojure "1.1.9"]
                  [http-kit "2.1.19"]
-                 [com.taoensso/sente "1.1.1-SNAPSHOT"]
+                 [com.taoensso/sente "1.1.0"]
                  [com.cognitect/transit-clj "0.8.255"]
                  [com.cognitect/transit-cljs "0.8.188"]
                  [hiccup "1.0.5"]
