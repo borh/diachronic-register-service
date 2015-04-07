@@ -1,6 +1,5 @@
 (ns diachronic-register-service.stats
   (:require [schema.core :as s]
-            [schema.macros :as sm]
             [diachronic-register-service.schemas :refer [StringNumberMap]]
             [clojure.set :as set]
             [clojure.core.reducers :as r]
@@ -15,7 +14,7 @@
      (Math/log 2)))
 
 ;; TODO go with one variant and simplify
-(sm/defn tf-idf :- s/Num
+(s/defn tf-idf :- s/Num
   "http://trimc-nlp.blogspot.jp/2013/04/tfidf-with-google-n-grams-and-pos-tags.html"
   [weight-type :- (s/enum :rsj :rsj-10 :rsjc)
    N  :- s/Int ;; Equivalent to `sum_i(Del_i)` in literature.
@@ -32,7 +31,7 @@
       :rsj-10 (* (inc (Math/log10 tf))
                  (Math/log10 (/ N df))))))
 
-(sm/defn pairwise-difference :- Double
+(s/defn pairwise-difference :- Double
   [xs :- [s/Num]]
   (r/fold
    (r/monoid
@@ -40,7 +39,7 @@
     (fn [] 0))
    (combo/combinations xs 2)))
 
-(sm/defn DP :- s/Num
+(s/defn DP :- s/Num
   "For a word A in a corpus X, DP is computed as follows:
   1. compute the size of each part of X (in % of all of X); i.e. part = contiguous metadata region?
   2. compute the relative frequency of A in each part of X; i.e. P(a|X)
@@ -63,7 +62,7 @@
   (s/with-fn-validation (DP [{:document/length 10 :tf 1} {:document/length 20 :tf 1}])))
 
 
-(sm/defn jaccard-similarity :- Double
+(s/defn jaccard-similarity :- Double
   [graph-a :- {s/Str s/Num}
    graph-b :- {s/Str s/Num}]
   (let [vertex-a (set (keys graph-a))
@@ -75,7 +74,7 @@
                  (count union)))
      0.0)))
 
-(sm/defschema GraphStats
+(s/defschema GraphStats
   {:common PersistentHashSet
    :a-only PersistentHashSet
    :b-only PersistentHashSet
@@ -83,7 +82,7 @@
    :a-unique-prop Double
    :b-unique-prop Double})
 
-(sm/defn generic-diff :- GraphStats
+(s/defn generic-diff :- GraphStats
   "Returns a map of different properties that represent differences between the two graphs a and b."
   [a :- StringNumberMap
    b :- StringNumberMap]
@@ -96,6 +95,7 @@
     {:common common-vocab
      :a-only a-only-vocab
      :b-only b-only-vocab
-     :common-prop   (double (/ (count common-vocab) (count total-vocab))) ;; jaccard-similarity?
-     :a-unique-prop (double (/ (count a-only-vocab) (count a-vocab))) ;; TODO divide by zero?
-     :b-unique-prop (double (/ (count b-only-vocab) (count b-vocab)))}))
+     ;; FIXME divide by zero?
+     :common-prop  (if-not (empty? total-vocab) 0.0 (double (/ (count common-vocab) (count total-vocab)))) ;; jaccard-similarity?
+     :a-unique-prop (if-not (empty? a-vocab) (double (/ (count a-only-vocab) (count a-vocab))))
+     :b-unique-prop (if-not (empty? b-vocab) (double (/ (count b-only-vocab) (count b-vocab))))}))

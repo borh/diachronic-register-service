@@ -1,6 +1,5 @@
 (ns diachronic-register-service.data
   (:require [schema.core :as s]
-            [schema.macros :as sm]
             [plumbing.core :refer [map-keys ?> ?>> update-in-when]]
 
             [datomic.api :as d]
@@ -22,7 +21,7 @@
   (:import [clojure.lang PersistentHashSet]
            [datomic.peer Connection]))
 
-(sm/defn document-to-datoms :- [{s/Keyword s/Any}]
+(s/defn document-to-datoms :- [{s/Keyword s/Any}]
   [paragraphs :- SentencesSchema
    metadata :- {s/Keyword s/Any}
    options :- CorpusOptions
@@ -61,7 +60,7 @@
     [(assoc document-e :document/paragraphs paragraphs-e :document/length (count (mapcat :sentence/words paragraphs-e)))]
     ))
 
-(sm/defn load-taiyo-data
+(s/defn load-taiyo-data
   [connection :- s/Any
    options :- CorpusOptions]
   (println ";; Loading Taiyo corpus" connection options)
@@ -71,7 +70,7 @@
     @(d/transact-async connection ;; FIXME is this the right transaction granularity? try 1000
                        (document-to-datoms paragraphs metadata options :unidic-MLJ))))
 
-(sm/defn load-bccwj-data
+(s/defn load-bccwj-data
   [connection :- s/Any
    options :- CorpusOptions]
   (println ";; Loading BCCWJ corpus" connection options)
@@ -81,7 +80,7 @@
     @(d/transact-async connection ;; FIXME is this the right transaction granularity?
                        (document-to-datoms paragraphs (update-in metadata [:category] #(->> % next (into []))) options :unidic))))
 
-(sm/defn load-data
+(s/defn load-data
   [connection :- s/Any
    options :- {s/Keyword CorpusOptions}]
   (load-taiyo-data connection (-> options :taiyo))
@@ -90,7 +89,7 @@
 ;; TODO Think about the structure of the data we return here. Should it be a zipper tree, should different attributes have different types of values (spans for years, and/*or* support for nominal, arbitrary functions (not as EDN, though) as subsets of selection, etc. as maybe types/records/protocols) in the tree?
 ;; How do we encode dependencies between different nodes/levels in the tree? Does it even need to be a tree--why not just a hashmap (cf. limits of nesting in update-in)? Every query on the database should then return a 'possible valid subset' of the metadata to pick from in the front-end? Can these dependencies between attributes be encoded in an index step? How to visualize the different paths possible within the metadata hierarchy tree (i.e. how to show interdependencies between selectables where selecting one box activates or closes off access to another)? Even if there are infinite (or close to infinite) possible paths, is it possible to calculate them on the fly in response to user input?
 
-(sm/defn get-all-metadata
+(s/defn get-all-metadata
   [connection :- s/Any]
   (->>
    (d/q '[:find ?attr-name (distinct ?attr-value)
@@ -112,13 +111,13 @@
    flatten
    (apply hash-map)))
 
-(sm/defn extract-collocations
+(s/defn extract-collocations
   [n :- s/Num
    coll :- [s/Str]]
   (when (>= (count coll) n)
     (apply vector (subvec coll 0 n) (extract-collocations n (subvec coll 1)))))
 
-(sm/defn index-collocations
+(s/defn index-collocations
   "Should generate collocations matching specified relation and commit them to the database."
   [connection :- s/Any
    relation-fn :- clojure.lang.IFn]
@@ -130,13 +129,13 @@
                  [?word :word/lemma ?lemma]]}
        (d/db connection)))
 
-(sm/defn index-counts
+(s/defn index-counts
   "Should pre-compute needed meta-information for arbitrary language features."
   [connection :- s/Any]
   (d/q '{:find [?]}
        (d/db connection)))
 
-(sm/defn make-dynamic-query :- [[s/Any]]
+(s/defn make-dynamic-query :- [[s/Any]]
   [facets :- {s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)}]
   (into []
    (for [[k v] facets]
@@ -145,7 +144,7 @@
 
 ;; d/filter all we can before using datalog?
 
-(sm/defn filter-with-rules
+(s/defn filter-with-rules
   [db
    rules :- [{s/Keyword s/Any}]
    e-or-v :- (s/enum :e :v)
@@ -165,12 +164,12 @@
     (fn [] ds))
    rules))
 
-(sm/defn categorize-rules :- {s/Keyword [{s/Keyword s/Any}]}
+(s/defn categorize-rules :- {s/Keyword [{s/Keyword s/Any}]}
   [rules :- [{s/Keyword s/Any}]]
   (->> rules
        (group-by (comp keyword namespace ffirst))))
 
-(sm/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
+(s/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
   "Returns the frequency distribution of given facet. Specifying a lemma will return that lemma's frequency, otherwise it returns all lemma within the facet."
   [connection
    facets :- [{s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)}]]
@@ -198,11 +197,10 @@
 ;; Search strategy for comparing a word's cooccurrence distribution between two facets:
 ;; 1.  Prepare two datastructures (String->Num maps) to hold the data for both facets. Start at the word level, iterate through all the sentences, and based on their metadata, add to relevant facet datastructure.
 
-(sm/defn get-graphs :- {:data [{s/Str s/Num}]
-                        :stats stats/GraphStats}
+(s/defn get-graphs :- {:data [{s/Str s/Num}]
+                       :stats stats/GraphStats}
   [connection :- Connection
    facets-seq :- [[{s/Keyword s/Any}]]]
-  (println connection (class connection) (type connection))
   (let [data (mapv (partial get-morpheme-graph-2 connection) facets-seq)]
     {:data data
      :stats (apply stats/generic-diff data)}))
@@ -220,7 +218,7 @@
     "Either word or collocation. Or rather word, with collocation graph included in map?"
     {s/Keyword {s/Any s/Any}}))
 
-(sm/defn get-morpheme-graph-3 ;;:- (s/maybe {s/Str s/Num})
+(s/defn get-morpheme-graph-3 ;;:- (s/maybe {s/Str s/Num})
   [connection
    facets :- (s/maybe {s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)})]
   (let [db (d/db connection)
@@ -237,7 +235,7 @@
          (r/map (fn [{:keys [e]}] (:document/title (d/entity db e))))
          (into []))))
 
-(sm/defn get-morpheme-graph :- (s/maybe {s/Str s/Num})
+(s/defn get-morpheme-graph :- (s/maybe {s/Str s/Num})
   [connection
    lemma :- s/Str
    facets :- (s/maybe {s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)})]
@@ -280,7 +278,7 @@
 
 )
 
-(sm/defn get-morpheme-strings :- [{:lemma s/Str s/Keyword s/Num}]
+(s/defn get-morpheme-strings :- [{:lemma s/Str s/Keyword s/Num}]
   "Given a datomic connection and a vector of queries, returns the morpheme frequency profile given the query constraints.
   Queries that specify more than one possible value must do so with a vector. TODO functions (>, <, ... + arbitrary functions); make queries ordered so we can take advantage of faster explicit queries in datalog."
   [connection :- s/Any

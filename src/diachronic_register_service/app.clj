@@ -1,10 +1,10 @@
 (ns diachronic-register-service.app
   (:require [schema.core :as s]
-            [schema.macros :as sm]
             [clojure.tools.namespace.repl :refer [refresh]]
             [com.stuartsierra.component :as component]
             [clojure.core.cache :as cache]
             [datomic.api :as d]
+            [immutant.web :as web]
             [taoensso.sente :as sente]
             [diachronic-register-service.datomic-schema :as schema]
             [diachronic-register-service.data :as data]
@@ -19,13 +19,15 @@
   component/Lifecycle
 
   (start [component]
-    (println ";; Starting database")
+    (println ";; Starting database at" datomic-uri)
     (when (:delete-database options)
       (println ";; Deleting database")
-      (d/delete-database datomic-uri))
+      (try (d/delete-database datomic-uri)
+           (catch Exception e (println ";; Could not delete database:" e))))
     (let [created? (d/create-database datomic-uri)
           connection (d/connect datomic-uri)]
       (when (and created? (:reload options))
+        (println ";; Recreating database")
         @(d/transact connection schema/schema)
         (data/load-data connection (:corpora options)))
       (-> component
@@ -72,7 +74,7 @@
     (println ";; Stopping server")
     ;; http-kit returns a function to stop the server, so we simply call it and return nil.
     (-> component
-        (update-in [:server] (fn [srv] (when-not (nil? srv) (srv :timeout 1000))))
+        (update-in [:server] (fn [srv] (when-not (nil? srv) (web/stop srv))))
         (update-in [:sente] (fn [rtr] (when-not (nil? rtr) (rtr)))))))
 
 (defn new-server [options]

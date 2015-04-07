@@ -2,16 +2,16 @@
   (:require [com.stuartsierra.component :as component]
             [clojure.tools.namespace.repl :refer [refresh]]
             [schema.core :as s]
-            [datomic.api :as d]
+
+            [cemerick.piggieback :as piggieback]
+            [weasel.repl.websocket :as weasel]
+
             [diachronic-register-service.app :as app]))
 
-(use 'io.aviso.exception)
-
-(defmacro e! [body]
-  `(try ~body
-        (catch Exception e# (io.aviso.exception/write-exception e#))))
-
 (defonce system nil)
+
+(defn browser-repl []
+  (piggieback/cljs-repl :repl-env (weasel/repl-env :ip "0.0.0.0" :port 9001)))
 
 (defn init []
   (alter-var-root
@@ -22,13 +22,10 @@
            :port #_nil 4334
            :type #_"mem" "free"
            :name "db"}
-      :server {:port 3001
-               ;;:join? false
-               :thread 6
-               ;;:dev true
-               }
-      :options {:reload false ;;true
-                :delete-database false ;;true
+      :server {:port 3000
+               :dev true}
+      :options {:reload false #_true
+                :delete-database false #_true
                 :out-dir "data"
                 :corpora {:bccwj {:metadata-dir "/data/BCCWJ-2012-dvd1/DOC/"
                                   :corpus-dir "/data/BCCWJ-2012-dvd1/C-XML/VARIABLE/"
@@ -52,4 +49,4 @@
   (stop)
   (refresh :after 'diachronic-register-service.user/go))
 
-;; (time (s/with-fn-validation (e! (go))))
+;; (time (s/with-fn-validation (go)))

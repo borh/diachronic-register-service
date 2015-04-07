@@ -1,23 +1,28 @@
 (ns diachronic-register-service.server
-  (:require [org.httpkit.server :refer [run-server]]
+  (:require                                                 ;;[org.httpkit.server :refer [run-server]]
+            [immutant.web :as web]
             [ring.middleware.reload :as reload]
             [plumbing.core :refer :all]
 
+            [environ.core :refer [env]]
+            [net.cgrand.enlive-html :refer [set-attr prepend append html]]
+            [net.cgrand.reload :refer [auto-reload]]
+            [leiningen.core.main :as lein]
 
             [clojure.core.match :refer [match]]
             ring.middleware.defaults
-            [ring.middleware.anti-forgery :as ring-anti-forgery]
-            [taoensso.sente :as sente]
-            [taoensso.sente.packers.transit :as sente-transit]
+
             [prone.middleware :as prone]
-            [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
-            [hiccup.core :as hiccup]
+            [clojure.core.async :refer [<! <!! >! >!! put! chan go go-loop]]
             [hiccup.page :refer [html5 include-css include-js]]
             [garden.core :refer [css]]
             [garden.color :as color :refer [hsl rgb]]
             [compojure.route :as route]
             [compojure.core :refer [defroutes routes GET POST]]
-            [compojure.handler :as comp-handler]
+
+            [taoensso.sente :as sente]
+            [taoensso.sente.server-adapters.immutant :refer [immutant-adapter]]
+            [taoensso.sente.packers.transit :as sente-transit]
 
             [diachronic-register-service.data :as data]))
 
@@ -34,6 +39,27 @@
 
 ;; Utils end
 
+;; ClojureScript Setup
+
+(def is-dev? (env :is-dev))
+
+(comment
+  (def inject-devmode-html
+    (comp
+      (set-attr :class "is-dev")
+      (prepend (html [:script {:type "text/javascript" :src "/js/out/goog/base.js"}]))
+      (prepend (html [:script {:type "text/javascript" :src "/react/react.js"}]))
+      (append (html [:script {:type "text/javascript"} "goog.require('diachronic_register_app.dev')"])))))
+
+(defn start-figwheel []
+  (future                                                   ;; FIXME reloading without tearing down server will fail as address is in use
+    (println "Starting figwheel.")
+    (try
+      (lein/-main ["figwheel"])
+      (catch Exception _ (println "figweel already running, aborting.")))))
+
+;;
+
 (def packer
   "Defines our packing (serialization) format for client<->server comms."
   ;; :edn ; Default
@@ -42,7 +68,7 @@
 
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! {:packer packer})]
+      (sente/make-channel-socket! immutant-adapter {:packer packer})]
   (def ring-ajax-post   ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk          ch-recv)
@@ -62,8 +88,9 @@
 (defn landing-pg-handler [req]
   (html5
    {:lang "ja" :encoding "UTF-8"}
-   (include-css "//netdna.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css") ;; FIXME how to specify local resources?
+   (include-css "bootstrap.min.css") ;; "//netdna.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css"
    ;;(include-css "main.css")
+   ;;[:script {:src "d3.v3.min.js"}]
    [:style (css [:body {:background (color/darken (hsl 0 0 100) 1)
                         :padding "65px"}
                  :navbar-nav [:button [:a {:line-height "1em"}]]])]
@@ -78,7 +105,12 @@
     #_[:p [:input#input-login {:type :text :placeholder "User-id"}]
      [:button#btn-login {:type "button"} "Secure login!"]]
     ]
-   [:script {:src "main.js"}]))
+   (if is-dev? [:script {:src "js/out/goog/base.js"}])
+   ;;[:script {:type "text/javascript" :src "/react/react.js"}]
+   (if is-dev? [:script {:type "text/javascript" :src "/react/react.js"}])
+   [:script {:src "js/out/app.js"}]
+   (if is-dev? [:script {:type "text/javascript"} "goog.require('diachronic_register_app.dev')"])
+   ))             ; not?
 
 ;; TODO https://github.com/metosin/compojure-api when exposing a public API
 
@@ -89,6 +121,7 @@
   (POST "/chsk" req (ring-ajax-post req))
   (POST "/login" req (login! req))
   ;;
+  (route/resources "/react" {:root "react"})
   (route/resources "/") ; Static files, notably public/main.js (our cljs target)
   (route/not-found "<h1>Page not found</h1>"))
 
@@ -100,35 +133,20 @@
         (ring.middleware.defaults/wrap-defaults ring-defaults-config)
         prone/wrap-exceptions)))
 
-#_(defroutes my-ring-handler
-  (-> (routes
-       (GET "/"       req (landing-pg-handler req))
-       ;;
-       (GET "/chsk"   req (ring-ajax-get-ws req))
-       (POST "/chsk"  req (ring-ajax-post req))
-       (POST "/login" req (login! req))
-       ;;
-       (route/resources "/") ; Static files, notably public/main.js (our cljs target)
-       (route/not-found "<h1>Page not found</h1>"))
-
-      ;; Middleware
-
-      ;; Sente adds a :csrf-token param to Ajax requests:
-      (ring-anti-forgery/wrap-anti-forgery
-       {:read-token (fn [req] (-> req :params :csrf-token))})
-
-      comp-handler/site
-      prone/wrap-exceptions))
-
 (defn start-api
   "Take resources and server options, and spin up a server with http-kit"
   [options]
   ;;(alter-var-root #'connection (fn [_] (-> options :db :connection)))
-  (run-server
+  (when (:dev options)
+    (auto-reload *ns*)
+    (try (start-figwheel)
+         (catch Exception e (println ";; Figwheel failed:" e))))
+  (web/run
    (if (:dev options)
      (reload/wrap-reload my-ring-handler)
      my-ring-handler)
-   options))
+   (select-keys options ; FIXME better validation?
+                #{:path :dispatch? :trust-managers :key-managers :keystore :buffer-size :auto-start :buffers-per-region :static-dir :worker-threads :port :host :ssl-context :io-threads :client-auth :direct-buffers? :trust-password :virtual-host :key-password :truststore :configuration :contexts :servlet-name :filter-map :ssl-port})))
 
 (defmulti event-msg-handler :id) ; Dispatch on event-id
 ;; Wrap for logging, catching, etc.:
@@ -150,6 +168,7 @@
 (defmethod event-msg-handler :query/lemma
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
   ;; ordering?? more specific first... (i.e. topic >> corpus etc...)
+  ;; FIXME: http://docs.datomic.com/query.html#timeout
   (?reply-fn (doto (with-timeout 10000 (data/get-morpheme-graph-2 connection (doto ?data println)))
                (comp println pr-str))))
 
