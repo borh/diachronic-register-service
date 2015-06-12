@@ -3,9 +3,10 @@
   :url "https://github.com/borh/diachronic-register-service"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-
-  :dependencies [[org.clojure/clojure "1.7.0-alpha6"]
-                 [org.clojure/clojurescript "0.0-3178" :exclusions [org.clojure/tools.reader]]
+  :repositories {"my.datomic.com" {:url "https://my.datomic.com/repo"
+                                   :creds :gpg}}
+  :dependencies [[org.clojure/clojure "1.7.0-RC1"]
+                 [org.clojure/clojurescript "0.0-3308" :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
 
@@ -16,21 +17,22 @@
                  [org.tukaani/xz "1.5"]
                  [me.raynes/fs "1.4.6"]
 
-                 [com.datomic/datomic-free "0.9.5153" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-databind org.jboss.logging/jboss-logging]]
+                 ;;[com.datomic/datomic-free "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-databind org.jboss.logging/jboss-logging]]
+                 [com.datomic/datomic-pro "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind org.jboss.logging/jboss-logging]]
                  [io.rkn/conformity "0.3.4"]
 
-                 [com.taoensso/encore "1.23.1"]
-                 [com.taoensso/timbre "3.4.0" :exclusions [com.taoensso/encore]]
-                 [com.cognitect/transit-clj  "0.8.269"]
-                 [com.cognitect/transit-cljs "0.8.205"]
-                 [com.taoensso/sente "1.4.1"]
+                 [com.taoensso/encore "1.34.0"]
+                 [com.taoensso/timbre "4.0.0-beta4" :exclusions [com.taoensso/encore]]
+                 [com.cognitect/transit-clj  "0.8.275"]
+                 [com.cognitect/transit-cljs "0.8.220"]
+                 [com.taoensso/sente "1.5.0-beta2"]
                  [enlive "1.1.5"]
                  [environ "1.0.0"]
 
                  [com.stuartsierra/component "0.2.3"]
                  [potemkin "0.3.13"]                        ;; FIXME Override
-                 [prismatic/schema "0.4.0"]
-                 [prismatic/plumbing "0.4.1"]
+                 [prismatic/schema "0.4.3"]
+                 [prismatic/plumbing "0.4.4"]
 
                  [aysylu/loom "0.5.0"]
                  [org.clojure/math.combinatorics "0.1.1"]
@@ -38,25 +40,25 @@
                  [tesser.core "1.0.0"]
                  [tesser.math "1.0.0"]
 
-                 [ring/ring "1.3.2" :exclusions [ring/ring-jetty-adapter]]
-                 [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
-                 [ring/ring-devel "1.3.2"]
+                 [ring/ring "1.4.0-RC1" :exclusions [ring/ring-jetty-adapter]]
+                 [ring/ring-core "1.4.0-RC1" :exclusions [org.clojure/tools.reader]]
+                 [ring/ring-devel "1.4.0-RC1"]
                  [ring/ring-json "0.3.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]
-                 [ring/ring-defaults "0.1.4"]               ; Incl. `ring-anti-forgery`, etc.
+                 [ring/ring-defaults "0.1.5"]               ; Incl. `ring-anti-forgery`, etc.
                  [commons-codec/commons-codec "1.10"]
-                 [prone "0.8.1"]
-                 [compojure "1.3.3"]
-                 [org.immutant/web "2.0.0-beta2"]
+                 [prone "0.8.2"]
+                 [compojure "1.3.4"]
+                 [org.immutant/web "2.0.1"]
                  [hiccup "1.0.5"]
-                 [garden "1.2.5"]
+                 [garden "1.2.6" :exclusions [org.clojure/clojure]]
 
                  ;; ClojureScript-specific
-                 [datascript "0.10.0"]
-                 [re-frame "0.2.0"]
+                 [datascript "0.11.3"]
+                 [re-frame "0.4.1"]
                  [com.facebook/react "0.12.2.4"]
-                 [cljsjs/d3 "3.5.5-2"]]
+                 [cljsjs/d3 "3.5.5-3"]]
 
-  :plugins [[lein-cljsbuild "1.0.5" :exclusions [org.clojure/clojure]]
+  :plugins [[lein-cljsbuild "1.0.6" :exclusions [org.clojure/clojure]]
             [lein-environ "1.0.0"]]
 
   :min-lein-version "2.5.0"
@@ -80,16 +82,20 @@
 
                    :jvm-opts ["-server" "-Xmx1g"]
 
-                   :dependencies [[figwheel "0.2.5" :exclusions [org.clojure/clojure]]
-                                  [com.cemerick/piggieback "0.2.0"]
+                   :dependencies [[figwheel "0.3.3" :exclusions [org.clojure/clojure org.codehaus.plexus/plexus-utils org.clojure/tools.reader]]
+                                  [com.cemerick/piggieback "0.2.1"]
                                   [org.clojure/tools.nrepl "0.2.10"] ;; FIXME Override
                                   [weasel "0.6.0"]
-                                  [leiningen "2.5.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]]
+
+                                  ;;[leiningen "2.5.1" :exclusions [com.fasterxml.jackson.core/jackson-core clj-http]]
+                                  ;;[raven-clj "1.3.1" :exclusions [clj-http]]
+                                  ;;[clj-http "1.1.2"]
+                                  ]
 
                    :repl-options {:init-ns diachronic-register-service.user
                                   :nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}
 
-                   :plugins [[lein-figwheel "0.2.5" :exclusions [org.clojure/clojure org.clojure/tools.reader]]]
+                   :plugins [[lein-figwheel "0.3.3" :exclusions [org.clojure/clojure org.codehaus.plexus/plexus-utils org.clojure/tools.reader]]]
 
                    :figwheel {:http-server-root "public"
                               :server-port 3449
