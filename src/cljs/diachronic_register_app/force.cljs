@@ -93,8 +93,7 @@
         height 500
         force-layout (build-force-layout width height)
         svg (build-svg id width height)]
-    (println "Creating force graph" id)
-    (println "SVG" svg)
+    (info "Creating force graph" id)
     (setup-force-layout force-layout graph)
     (let [links (build-links svg (.-links graph))
           nodes (build-force-nodes svg (.-nodes graph) force-layout)]
