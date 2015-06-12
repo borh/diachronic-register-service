@@ -93,7 +93,8 @@
 (defn search-box
   "Lemma query box."
   []
-  (let [lemma (subscribe [:lemma])]
+  (let [lemma (subscribe [:lemma])
+        facets (subscribe [:facets])]
     (fn []
       [:div.col-md-4.col-md-offset-4.input-group
        [:input {:class        "input form-control" :type "text"
@@ -106,13 +107,13 @@
                 :on-key-press (fn [e]
                                 (when (== (.-keyCode e) 13)
                                   (let [lemma-string (.. e -target -value)] ;; FIXME do we need to get lemma here again? -> subscription value should be enough
-                                    (dispatch [:update-search-state [:a :b] :loading])
-                                    (dispatch [:search-graphs lemma-string [:a :b]]))))}]
+                                    (dispatch [:update-search-state @facets :loading])
+                                    (dispatch [:search-graphs lemma-string @facets]))))}]
        [:span.input-group-btn
         [:button {:class    "btn" :id "search-btn" :type "button"
                   :on-click (fn [_]
-                              (dispatch [:update-search-state [:a :b] :loading])
-                              (dispatch [:search-graphs @lemma [:a :b]]))}
+                              (dispatch [:update-search-state @facets :loading])
+                              (dispatch [:search-graphs @lemma @facets]))}
          "Search"]]])))
 
 (defn morpheme-variants-box []
@@ -163,6 +164,7 @@
       [:div
        (case (-> @search-state id)
          :loading [:p "Loading..."]
+         nil [:p "Loading..."]
          :failed [:p "Search timed out. Please try again!"]
          :full (if (not-empty (-> @graph id))
                  [:div [graph-box id @lemma (id @graph)]]   ;; TODO would making the d3 node at this level help?
@@ -231,8 +233,10 @@
 (defn app []
   (let [app-state-ready? (subscribe [:app-state-ready?])
         sente-connected? (subscribe [:sente-connected?])
-        morpheme-variants (subscribe [:morpheme-variants])]
+        morpheme-variants (subscribe [:morpheme-variants])
+        facets (subscribe [:facets])]
     (info "Loading..." "app-state:" @app-state-ready? " sente:" @sente-connected?)
+    (info "facets" @facets)
     (fn []
       [:div.container-fluid
        [navbar]
@@ -250,16 +254,16 @@
          (into [:div.row]  ;; FIXME facet-box should be dynamically created/removed
                (mapv
                 (fn [id]
-                  [:div {:class (str "col-md-" (int (/ 12 (count [:a :b]))))} ;;.col-md-6
+                  [:div {:class (str "col-md-" (int (/ 12 (count @facets))))} ;;.col-md-6
                    [facet-box id]])
-                [:a :b])))
+                @facets)))
        (into
         [:div.row (stats-box)]  ;; FIXME facet-box should be dynamically created/removed
         (mapv
          (fn [id]
-           [:div {:class (str "col-md-" (int (/ 12 (count [:a :b]))))} ;;.col-md-6
+           [:div {:class (str "col-md-" (int (/ 12 (count @facets))))} ;;.col-md-6
             [results-box id]])
-         [:a :b]))
+         @facets))
        #_[:div.row
         (stats-box)
         [:div.col-md-6 ;; FIXME results-box should be dynamically created/removed and should match its query facet

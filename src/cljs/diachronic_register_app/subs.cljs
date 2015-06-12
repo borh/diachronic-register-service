@@ -8,6 +8,8 @@
 
 (register-sub :initialized? (fn [db] (reaction (and (not (empty? @db)) (= :ready (:channel-state @db))))))
 
+(register-sub :facets (fn [db] (reaction (:facets @db))))
+
 (register-sub :search-state (fn [db] (reaction (:search-state @db))))
 
 (register-sub :metadata (fn [db] (reaction (:metadata @db))))

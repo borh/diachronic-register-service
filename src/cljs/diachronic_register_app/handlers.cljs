@@ -17,13 +17,16 @@
      :lemma ""
      :morpheme-variants nil
      :stats nil
-     :graph {:a {}
-             ;;:b {}
-             }
-     :search-state {:a :loading
+     :facets #{:facet-1 :facet-2}
+     :graph {}
+     :search-state {} #_{:a :loading
                     :b :loading}
      :metadata nil #_{:a nil
                       :b nil}}))
+
+(register-handler :add-facet (fn [db [_ facet-name]] (trace "Adding facet" facet-name) (update-in db [:facets] conj facet-name)))
+
+(register-handler :delete-facet (fn [db [_ facet-name]] (trace "Deleting facet" facet-name) (update-in db [:facets] disj facet-name)))
 
 (register-handler :set-sente-connection-state (fn [db [_ state]] (assoc db :channel-state state)))
 
@@ -79,7 +82,7 @@
                         (dispatch [:update-search-state ids (if (= "" lemma) :full :lemma)])))))
       db)))
 
-(register-handler :set-metadata (fn [db [_ data]] (trace "Setting metadata") (assoc db :metadata {:a data :b data})))
+(register-handler :set-metadata (fn [db [_ data facets]] (trace "Setting metadata") (assoc db :metadata (zipmap facets (repeat data)))))
 
 (register-handler :update-metadata (fn [db [_ path]] (trace "Setting state" (get-in db path) "at path" path) (update-in db path not)))
 
@@ -124,5 +127,5 @@
                         (let [metadata-checkboxes (metadata-to-checkboxes reply)]
                           ;; FIXME Hack to save on server queries.
                           (trace "metadata recieved." #_metadata-checkboxes)
-                          (dispatch [:set-metadata metadata-checkboxes])))))))
+                          (dispatch [:set-metadata metadata-checkboxes (:facets db)])))))))
     db))
