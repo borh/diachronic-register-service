@@ -14,6 +14,8 @@
 
 (register-sub :lemma (fn [db] (reaction (:lemma @db))))
 
+(register-sub :morpheme-variants (fn [db] (reaction (:morpheme-variants @db))))
+
 (register-sub :graph (fn [db] (reaction (:graph @db))))
 
 (register-sub :stats (fn [db] (reaction (:stats @db))))

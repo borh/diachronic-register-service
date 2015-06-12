@@ -1,6 +1,9 @@
 (ns diachronic-register-app.communication
   (:require [taoensso.sente :as sente :refer [cb-success?]]
             [taoensso.sente.packers.transit :as sente-transit]
+            [taoensso.timbre :as timbre
+             :refer-macros [log  trace  debug  info  warn  error  fatal  report
+                            logf tracef debugf infof warnf errorf fatalf reportf spy]]
 
             [re-frame.core :refer [dispatch]]))
 
@@ -23,27 +26,27 @@
 
 ;; Wrap for logging, catching, etc.:
 (defn event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
-  (println "Event: " event)
+  (trace "Event: " event)
   (event-msg-handler ev-msg))
 
 (defmethod event-msg-handler :default ; Fallback
   [{:as ev-msg :keys [event]}]
-  (println "Unhandled event: " event))
+  (trace "Unhandled event: " event))
 
 (defmethod event-msg-handler :chsk/state
   [{:as ev-msg :keys [?data]}]
-  (println ?data)
-  (println (:first-open? ?data) (:open? ?data))
-  (println chsk)
+  (trace ?data)
+  (trace (:first-open? ?data) (:open? ?data))
+  (trace chsk)
   (if (or (:first-open? ?data) (:open? ?data))
     (do (dispatch [:set-sente-connection-state :ready])
-        (println "Channel socket successfully established!"))
-    (do (println "Channel socket state change: " ?data)
+        (trace "Channel socket successfully established!"))
+    (do (trace "Channel socket state change: " ?data)
         (dispatch [:set-sente-connection-state nil]))))
 
 (defmethod event-msg-handler :chsk/recv
   [{:as ev-msg :keys [?data]}]
-  (println "Push event from server: " ?data))
+  (trace "Push event from server: " ?data))
 
 (def chsk-router (atom nil))
 (defn stop-router! [] (when-let [stop-f @chsk-router] (stop-f)))

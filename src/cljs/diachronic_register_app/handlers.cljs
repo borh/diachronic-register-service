@@ -1,8 +1,12 @@
 (ns diachronic-register-app.handlers
   (:require-macros [plumbing.core :refer [for-map]])
-  (:require [re-frame.core :refer [register-handler dispatch subscribe]]
-            [schema.core :as s :include-macros true]
+  (:require [schema.core :as s :include-macros true]
+            [taoensso.timbre :as timbre
+             :refer-macros [log  trace  debug  info  warn  error  fatal  report
+                            logf tracef debugf infof warnf errorf fatalf reportf spy]]
             [plumbing.core :refer [map-vals]]
+
+            [re-frame.core :refer [register-handler dispatch subscribe]]
 
             [diachronic-register-app.communication :as comm]))
 
@@ -11,20 +15,22 @@
   (fn [_ _]
     {:channel-state nil
      :lemma ""
+     :morpheme-variants nil
      :stats nil
      :graph {:a {}
-             :b {}}
+             ;;:b {}
+             }
      :search-state {:a :loading
                     :b :loading}
      :metadata nil #_{:a nil
-                :b nil}}))
+                      :b nil}}))
 
 (register-handler :set-sente-connection-state (fn [db [_ state]] (assoc db :channel-state state)))
 
 (register-handler
   :update-search-state
   (fn [db [_ ids state]]
-    (println "Updating search state" state)
+    (trace "Updating search state" state)
     (merge db
            {:search-state
             (for-map [id ids]
@@ -33,7 +39,7 @@
 (register-handler
   :update-graph
   (fn [db [_ ids reply]]
-    (println "Updating graphs")
+    (trace "Updating graphs")
     (merge db
            {:graph
             (for-map [id ids]
@@ -48,7 +54,7 @@
                 [k kd] nskd
                 [v vd] kd ;; <- this is where we want to dispatch on facet type (tree, OR, AND, ...)
                 :when (:checked vd)]
-            (do (println nsk k v)
+            (do (trace nsk k v)
                 {(keyword nsk k) v}))))
 
 (register-handler
@@ -61,7 +67,7 @@
                               (selected-facets (-> db :metadata id)))
                         (selected-facets (-> db :metadata id))))
                     ids)]
-      (println "PAYLOAD:" payload)
+      (trace "PAYLOAD:" payload)
       (comm/send! [:query/graphs payload]
                   300000                                    ;; TODO Longer timeout is for testing.
                   (fn [reply]
@@ -73,11 +79,25 @@
                         (dispatch [:update-search-state ids (if (= "" lemma) :full :lemma)])))))
       db)))
 
-(register-handler :set-metadata (fn [db [_ data]] (println "Setting metadata") (assoc db :metadata {:a data :b data})))
+(register-handler :set-metadata (fn [db [_ data]] (trace "Setting metadata") (assoc db :metadata {:a data :b data})))
 
-(register-handler :update-metadata (fn [db [_ path]] (println "Setting state" (get-in db path) "at path" path) (update-in db path not)))
+(register-handler :update-metadata (fn [db [_ path]] (trace "Setting state" (get-in db path) "at path" path) (update-in db path not)))
 
-(register-handler :update-lemma (fn [db [_ lemma]] (println "Updating lemma" lemma) (assoc db :lemma lemma)))
+(register-handler :update-lemma (fn [db [_ lemma]] (trace "Updating lemma" lemma) (assoc db :lemma lemma)))
+
+(register-handler :set-morpheme-variants (fn [db [_ variants]] (trace "Updating morpheme variants" variants) (assoc db :morpheme-variants variants)))
+
+(register-handler
+ :get-morpheme-variants
+ (fn [db [_ lemma]]
+   (trace "Updating morpheme variants" lemma)
+   (comm/send! [:query/morpheme-variants lemma]
+               5000
+               (fn [reply]
+                 (if (keyword? reply)
+                   (error "Updating morpheme variants failed" reply)
+                   (dispatch [:set-morpheme-variants reply]))))
+   db))
 
 (s/defn metadata-to-checkboxes :- {(s/enum "document" "paragraph") {s/Str {s/Any {:name s/Str :checked s/Bool}}}}
   [metadata :- [{s/Keyword s/Any}]]
@@ -99,10 +119,10 @@
                     5000
                     (fn [reply]
                       (if (keyword? reply)
-                        (do (println "metadata failed" reply)
+                        (do (trace "metadata failed" reply)
                             #_(get-metadata))
                         (let [metadata-checkboxes (metadata-to-checkboxes reply)]
                           ;; FIXME Hack to save on server queries.
-                          (println "metadata recieved." #_metadata-checkboxes)
+                          (trace "metadata recieved." #_metadata-checkboxes)
                           (dispatch [:set-metadata metadata-checkboxes])))))))
     db))

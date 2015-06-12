@@ -1,12 +1,10 @@
 (ns diachronic-register-app.core
-  (:require-macros [cljs.core.async.macros :refer [go go-loop]]
-                   [plumbing.core :refer [for-map]])
-  (:require [cljs.core.match]
-            [cljs.core.async :refer [<! >! put! chan]]
+  (:require [schema.core :as s :include-macros true]
+            [taoensso.timbre :as timbre
+             :refer-macros [log  trace  debug  info  warn  error  fatal  report
+                            logf tracef debugf infof warnf errorf fatalf reportf spy]]
 
-
-
-            [reagent.core :as reagent :refer [atom]]
+            [reagent.core :as reagent]
             [re-frame.core :refer [subscribe
                                    dispatch
                                    dispatch-sync]]
@@ -14,9 +12,7 @@
             [diachronic-register-app.handlers :as handlers]
             [diachronic-register-app.subs :as subs]
             [diachronic-register-app.views :as views]
-            [diachronic-register-app.communication :as comm]
-
-            [schema.core :as s :include-macros true]))
+            [diachronic-register-app.communication :as comm]))
 
 (enable-console-print!)
 
@@ -53,12 +49,12 @@
 ;;   [tree]
 ;;   [:ul ])
 
-(defn main []
-  ;; Sente websocket communication:
-  (comm/start-router!)
+(info "Starting application...")
+;; Sente websocket communication:
+(comm/start-router!)
 
-  (dispatch-sync [:initialize-app-state])
-  (dispatch-sync [:get-metadata])
+(dispatch-sync [:initialize-app-state])
+(dispatch-sync [:get-metadata])
 
-  (s/with-fn-validation                                     ;; Remove for production.
-    (reagent/render [views/app] (.getElementById js/document "app"))))
+(s/with-fn-validation                                     ;; Remove for production.
+  (reagent/render [views/app] (.getElementById js/document "app")))

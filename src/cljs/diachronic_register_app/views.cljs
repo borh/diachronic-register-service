@@ -5,35 +5,90 @@
             [re-frame.core :refer [dispatch subscribe]]
             [reagent.core :as reagent]
 
+            [taoensso.timbre :as timbre
+             :refer-macros [log  trace  debug  info  warn  error  fatal  report
+                            logf tracef debugf infof warnf errorf fatalf reportf spy]]
+
             [diachronic-register-app.force :as force]))
+
+(defmulti make-selection-element (fn [coll] (:match-type (meta coll))))
+
+(defmethod make-selection-element :OR
+  [id nk k vs]
+  [:div.checkbox-inline
+   (for [[v v-map] (sort vs)]
+     ^{:key (str nk k (:name v-map))}
+     [:label.checkbox-inline
+      [:input
+       {:type      "checkbox"
+        :id        (str nk k (:name v-map))
+        :value     (:name v-map)
+        :checked   (:checked v-map)
+        :on-change (fn [_] (trace "Updating state:" (:checked v-map) "to" (not (:checked v-map))) (dispatch [:update-metadata [:metadata id nk k v :checked]]))}
+       (:name v-map)]])])
+
+(comment
+
+  ;; The following would make choosing a value to add to the query easy?
+  [:select.form-control
+   [:option 1]
+   [:option 2]
+   [:option 3]]
+
+  )
+
+(defn make-collapsible-panel
+  [{:keys [panel-name open?]} body]
+  (let [unique-id (gensym panel-name)]
+    (with-meta
+      [:div.panel.panel-primary {:id (str "panel" unique-id)}
+       [:div.panel-heading {:role "tab" :id (str "heading" unique-id)}
+        [:h3.panel-title
+         [:a {:data-toggle   "collapse"
+              :data-parent   (str "#panel" unique-id)
+              :href          (str "#collapse" unique-id)
+              :aria-expanded (if open? true false)
+              :aria-controls (str "collapse" unique-id)}
+          panel-name]]]
+       [:div.panel-collapse.collapse;;.in <- will open on load
+        {:id (str "collapse" unique-id)
+         :role "tabpanel"
+         :aria-labelledby (str "heading" unique-id)}
+        [:div.panel-body
+         body]]]
+      {:key unique-id})))
 
 (defn facet-box
   [id]
   (let [metadata (subscribe [:metadata])]
     (fn []
-      (if @metadata
-        [:div.row                                           ;; TODO tree zipper metadata + dynamic controls depending on datatype (year: date span, #{:OC.. ..} set support, etc.)
-         (for [[nk kvs] (id @metadata)]
-           ^{:key nk}
-           [:div.col-md-12
-            [:h3.strong (str/capitalize nk)]
-            (for [[k vs] (sort kvs)]
-              ^{:key k}
-              [:div.row
-               [:div.col-md-12.form-group
-                [:p (str/capitalize k)]
-                [:div.checkbox-inline
-                 (for [[v v-map] (sort vs)]                 ;; <- this is where we want to dispatch on facet type (tree, OR, AND, ...)
-                   ^{:key (str nk k (:name v-map))}
-                   [:label.checkbox-inline
-                    [:input
-                     {:type      "checkbox"
-                      :id        (str nk k (:name v-map))
-                      :value     (:name v-map)
-                      :checked   (:checked v-map)
-                      :on-change (fn [_] (println "Updating state:" (:checked v-map) "to" (not (:checked v-map))) (dispatch [:update-metadata [:metadata id nk k v :checked]]))}
-                     (:name v-map)]])]]])])]
-        [:p "Loading metadata..."]))))
+      (if-not @metadata
+        [:p "Loading metadata..."]
+        [:div.row
+         ;; TODO tree zipper metadata + dynamic controls depending on datatype (year: date span, #{:OC.. ..} set support, etc.)
+         (make-collapsible-panel
+          {:panel-name (str/capitalize (name id))
+           :open? true}
+          (for [[nk kvs] (id @metadata)]
+            (make-collapsible-panel
+             {:panel-name (str/capitalize nk)
+              :open? true}
+             (for [[k vs] (sort kvs)]
+               ^{:key k}
+               [:div.row
+                [:div.form-group;;.col-md-12
+                 [:p (str/capitalize k)]
+                 [:div.checkbox-inline
+                  (for [[v v-map] (sort vs)]                 ;; <- this is where we want to dispatch on facet type (tree, OR, AND, ...)
+                    ^{:key (str nk k (:name v-map))}
+                    [:label.checkbox-inline
+                     [:input
+                      {:type      "checkbox"
+                       :id        (str nk k (:name v-map))
+                       :value     (:name v-map)
+                       :checked   (:checked v-map)
+                       :on-change (fn [_] (trace "Updating state:" (:checked v-map) "to" (not (:checked v-map))) (dispatch [:update-metadata [:metadata id nk k v :checked]]))}
+                      (:name v-map)]])]]]))))]))))
 
 (defn search-box
   "Lemma query box."
@@ -44,11 +99,15 @@
        [:input {:class        "input form-control" :type "text"
                 :placeholder  "Input any character string ..."
                 :value        @lemma
-                :on-change    #(dispatch [:update-lemma (.. % -target -value)])
-                :on-key-press #(when (== (.-keyCode %) 13)
-                                (let [lemma-string (.. % -target -value)] ;; FIXME do we need to get lemma here again? -> subscription value should be enough
-                                  (dispatch [:update-search-state [:a :b] :loading])
-                                  (dispatch [:search-graphs lemma-string [:a :b]])))}]
+                :on-change    (fn [e]
+                                (let [lemma-string (.. e -target -value)]
+                                  (dispatch [:update-lemma lemma-string])
+                                  (dispatch [:get-morpheme-variants lemma-string])))
+                :on-key-press (fn [e]
+                                (when (== (.-keyCode e) 13)
+                                  (let [lemma-string (.. e -target -value)] ;; FIXME do we need to get lemma here again? -> subscription value should be enough
+                                    (dispatch [:update-search-state [:a :b] :loading])
+                                    (dispatch [:search-graphs lemma-string [:a :b]]))))}]
        [:span.input-group-btn
         [:button {:class    "btn" :id "search-btn" :type "button"
                   :on-click (fn [_]
@@ -56,12 +115,35 @@
                               (dispatch [:search-graphs @lemma [:a :b]]))}
          "Search"]]])))
 
+(defn morpheme-variants-box []
+  (let [morpheme-variants (subscribe [:morpheme-variants])]
+    (fn []
+      (if (pos? (:count @morpheme-variants))
+        [:div [:ul
+               (for [[morpheme freq] @morpheme-variants]
+                 [:li (str morpheme "=>" freq)])]]))))
+
+
+(defn tree-box-render [id]
+  (trace "Rendering tree-box" id)
+  [:div {:id (str "d3-tree-" (name id)) :react-key (str "d3-tree-" (name id))} [:svg]])
+
+(defn tree-box-did-mount [id d3-tree]
+  (trace "tree-box-did-mount")
+  (force/make-tree-graph! id d3-tree))
+
+(defn tree-box
+  [id d3-tree]
+  (reagent/create-class {:display-name "tree-box"
+                         :reagent-render (tree-box-render id)
+                         :component-did-mount (tree-box-did-mount id d3-tree)}))
+
 (defn graph-box-render [id]
-  (println "Rendering graph-box" id)
+  (trace "Rendering graph-box" id)
   [:div {:id (str "d3-node-" (name id)) :react-key (str "d3-node-" (name id))} [:svg]])
 
 (defn graph-box-did-mount [id lemma graph]
-  (println "graph-box-did-mount")
+  (trace "graph-box-did-mount")
   (force/make-force-graph! id lemma graph))
 
 (defn graph-box
@@ -77,7 +159,7 @@
         graph (subscribe [:graph])
         lemma (subscribe [:lemma])]
     (fn []
-      (println (-> @search-state id))
+      (trace (-> @search-state id))
       [:div
        (case (-> @search-state id)
          :loading [:p "Loading..."]
@@ -118,7 +200,7 @@
   []
   (let [stats (subscribe [:stats])]
     (fn []
-      [:div.col-md-12                                       ;; TODO: do we want to visualize the 1.0 and 3.0 as a sorted line of words (order determined by some weight....)?
+      [:div.col-md-12 ;; TODO: do we want to visualize the 1.0 and 3.0 as a sorted line of words (order determined by some weight....)?
        (if @stats
          (let [{:keys [common
                        a-only
@@ -148,41 +230,42 @@
 
 (defn app []
   (let [app-state-ready? (subscribe [:app-state-ready?])
-        sente-connected? (subscribe [:sente-connected?])]
-    (println "Loading..." "app-state:" @app-state-ready? " sente:" @sente-connected?)
+        sente-connected? (subscribe [:sente-connected?])
+        morpheme-variants (subscribe [:morpheme-variants])]
+    (info "Loading..." "app-state:" @app-state-ready? " sente:" @sente-connected?)
     (fn []
       [:div.container-fluid
        [navbar]
        [:div.page-header
         [:h1.text-center "Japanese Language Register Search"]]
-       (if-not (and @app-state-ready? @sente-connected?)
-         [:p "Loading facet-box"]
-         [:div.row
-          [:div.col-md-6
-           [:h2 "A"]
-           [facet-box :a]]
-          [:div.col-md-6
-           [:h2 "B"]
-           [facet-box :b]]]
-         #_(into [:div.row]
-               (mapv
-                 (fn [id]
-                   [:div.col-md-6
-                    [:h2 (name id)]
-                    [facet-box id]])
-                 [:a :b])))
        [:div.row
         (if-not @app-state-ready?
           [:p "Loading search-box"]
           [search-box])]
-       [:div.row
+       [:div.row [morpheme-variants-box]]
+       #_(if (pos? (:count @morpheme-variants))
+         [:div.row [tree-box "query" @morpheme-variants]])
+       (if-not (and @app-state-ready? @sente-connected?)
+         [:p "Loading facet-box"]
+         (into [:div.row]  ;; FIXME facet-box should be dynamically created/removed
+               (mapv
+                (fn [id]
+                  [:div {:class (str "col-md-" (int (/ 12 (count [:a :b]))))} ;;.col-md-6
+                   [facet-box id]])
+                [:a :b])))
+       (into
+        [:div.row (stats-box)]  ;; FIXME facet-box should be dynamically created/removed
+        (mapv
+         (fn [id]
+           [:div {:class (str "col-md-" (int (/ 12 (count [:a :b]))))} ;;.col-md-6
+            [results-box id]])
+         [:a :b]))
+       #_[:div.row
         (stats-box)
-        [:div.col-md-6
-         [:h2 "A"]
+        [:div.col-md-6 ;; FIXME results-box should be dynamically created/removed and should match its query facet
          [results-box :a]
          [:div#d3-node-a]]
         [:div.col-md-6
-         [:h2 "B"]
          [results-box :b]
          [:div#d3-node-b]]]
        [:nav.navbar.navbar-default.navbar-fixed-bottom.centered
