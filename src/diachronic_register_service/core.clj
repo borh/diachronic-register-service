@@ -1,13 +1,12 @@
 (ns diachronic-register-service.core
-  (:require [schema.core :as s]
-            [schema.macros :as sm]
-            [clojure.tools.namespace.repl :refer [refresh]]
-            [com.stuartsierra.component :as component]
-            [diachronic-register-service.app :as app]))
+  (:gen-class)
+  (:require [diachronic-register-service.app :as app]
+            [schema.core :as s]
+            [reloaded.repl :refer [system init start stop go reset]]))
 
-(defn -main [& args]
-  (let [[a b c] args]
-    (component/start
-     (app/system :TODO))))
-
-;; Look at https://github.com/RedBrainLabs/system-graph
+(defn -main
+  "Start a production system, unless a system is passed as argument (as in the dev-run task)."
+  [& args]
+  (let [system (or (first args) #'app/prod-system)]
+    (reloaded.repl/set-init! system)
+    (go)))

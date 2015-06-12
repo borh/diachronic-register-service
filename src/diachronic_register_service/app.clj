@@ -1,11 +1,21 @@
 (ns diachronic-register-service.app
   (:require [schema.core :as s]
-            [clojure.tools.namespace.repl :refer [refresh]]
+
             [com.stuartsierra.component :as component]
+            [system.core :refer [defsystem]]
+            [environ.core :refer [env]]
+
             [clojure.core.cache :as cache]
             [datomic.api :as d]
             [immutant.web :as web]
-            [taoensso.sente :as sente]
+
+            [taoensso.sente.packers.transit :as sente-transit]
+            [system.components.sente :refer [new-channel-sockets]]
+            [diachronic-register-service.messaging :as messaging]
+            [taoensso.sente.server-adapters.immutant :refer [sente-web-server-adapter]]
+
+            [diachronic-register-service.components.immutant-web :refer [new-web-server]]
+
             [diachronic-register-service.datomic-schema :as schema]
             [diachronic-register-service.data :as data]
             [diachronic-register-service.server :as server]))
@@ -14,22 +24,24 @@
 ;; https://github.com/uswitch/blueshift/blob/master/src/uswitch/blueshift/system.clj
 ;; https://github.com/uswitch/bifrost/blob/master/src/uswitch/bifrost/system.clj
 
-(defrecord Database [datomic-uri options]
+(defrecord Database [datomic-uri corpora delete-database? reload?]
   ;; Implement the Lifecycle protocol
   component/Lifecycle
 
   (start [component]
+    (println datomic-uri corpora delete-database? reload?)
     (println ";; Starting database at" datomic-uri)
-    (when (:delete-database options)
+    #_(when delete-database?
       (println ";; Deleting database")
       (try (d/delete-database datomic-uri)
            (catch Exception e (println ";; Could not delete database:" e))))
     (let [created? (d/create-database datomic-uri)
           connection (d/connect datomic-uri)]
-      (when (and created? (:reload options))
+      (println "created?" created?)
+      (when reload?
         (println ";; Recreating database")
         @(d/transact connection schema/schema)
-        (data/load-data connection (:corpora options)))
+        (data/load-data connection corpora))
       (-> component
           (assoc :uri (java.net.URI. datomic-uri))
           (assoc :connection connection)
@@ -39,71 +51,23 @@
     (println ";; Stopping database")
     (dissoc component :uri :connection :db)))
 
-(defn new-database [type host port name options]
+(defn new-database [{:keys [type host port name delete-database? reload?]} corpora]
   (map->Database {:datomic-uri (format "datomic:%s://%s%s"
                                        type
                                        (if (= type "mem")
                                          ""
                                          (str host ":" port "/"))
                                        name)
-                  :options options}))
+                  :corpora corpora
+                  :delete-database? delete-database?
+                  :reload? reload?}))
 
-(defrecord Server [db options]
-  component/Lifecycle
+(defsystem dev-system
+  [:sente (new-channel-sockets messaging/event-msg-handler* sente-web-server-adapter {:packer (sente-transit/get-flexi-packer :edn)})
+   :db (new-database (env :datomic) (env :corpora))
+   :server (new-web-server (env :http-port) server/my-ring-handler)])
 
-  (start [component]
-    (println ";; Starting server")
-
-    (server/set-connection (-> db :connection))
-    (-> component
-        (assoc :server (server/start-api options))
-        (assoc :sente (sente/start-chsk-router!
-                       server/ch-chsk
-                       server/event-msg-handler*)))
-    #_(let [{:keys [ch-recv send-fn ajax-post-fn
-                  ajax-get-or-ws-handshake-fn connected-uids]}
-          (sente/make-channel-socket! {})]
-      (server/set-routes ajax-post-fn ajax-get-or-ws-handshake-fn)
-      #_{:ring-ajax-post ajax-post-fn
-         :ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn
-         :ch-chsk ch-recv ; ChannelSocket's receive channel
-         :chsk-send! send-fn ; ChannelSocket's send API fn
-         :connected-uids connected-uids}))
-
-  (stop [component]
-    (println ";; Stopping server")
-    ;; http-kit returns a function to stop the server, so we simply call it and return nil.
-    (-> component
-        (update-in [:server] (fn [srv] (when-not (nil? srv) (web/stop srv))))
-        (update-in [:sente] (fn [rtr] (when-not (nil? rtr) (rtr)))))))
-
-(defn new-server [options]
-  (map->Server {:options options}))
-
-(def system-components [:db :server])
-
-(defrecord App-System [options db server]
-  component/Lifecycle
-
-  (start [this]
-    (component/start-system this system-components))
-  (stop [this]
-    (component/stop-system this system-components)))
-
-(defn new-system [options]
-  (map->App-System {:options options}))
-
-(defn system [options]
-  (let [{:keys [type host port name]} (:db options)]
-    (map->App-System
-     {:options options
-      :db (new-database type host port name (:options options))
-      :server (component/using
-               (new-server (:server options))
-               [:db])
-      :app (component/using
-            (new-system options)
-            system-components)})))
+(def prod-system dev-system)
 
 ;; # Load Database
 

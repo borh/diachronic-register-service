@@ -1,6 +1,7 @@
 (ns diachronic-register-service.data
   (:require [schema.core :as s]
             [plumbing.core :refer [map-keys ?> ?>> update-in-when]]
+            [taoensso.timbre :as log]
 
             [datomic.api :as d]
 
@@ -23,9 +24,9 @@
 
 (s/defn document-to-datoms :- [{s/Keyword s/Any}]
   [paragraphs :- SentencesSchema
-   metadata :- {s/Keyword s/Any}
-   options :- CorpusOptions
-   dic-type :- s/Keyword]
+   metadata   :- {s/Keyword s/Any}
+   options    :- CorpusOptions
+   dic-type   :- s/Keyword]
   (let [document-id {:db/id #db/id[:db.part/user]}
         document-e (merge document-id
                           (-> (->> (select-keys metadata (:metadata-keys options))
@@ -57,13 +58,12 @@
                            {:paragraph/sentences sentences-e}
                            {:paragraph/sentences sentences-e :paragraph/tags tags})))]
     ;;(into [document-e] paragraphs-e)
-    [(assoc document-e :document/paragraphs paragraphs-e :document/length (count (mapcat :sentence/words paragraphs-e)))]
-    ))
+    [(assoc document-e :document/paragraphs paragraphs-e :document/length (count (mapcat :sentence/words paragraphs-e)))]))
 
 (s/defn load-taiyo-data
-  [connection :- s/Any
+  [connection :- Connection
    options :- CorpusOptions]
-  (println ";; Loading Taiyo corpus" connection options)
+  (log/info ";; Loading Taiyo corpus" connection options)
   (doseq [{:keys [metadata paragraphs]}
           (take 100 (kokken/document-seq (:corpus-dir options)))]
     (println metadata (count paragraphs))
@@ -71,17 +71,17 @@
                        (document-to-datoms paragraphs metadata options :unidic-MLJ))))
 
 (s/defn load-bccwj-data
-  [connection :- s/Any
+  [connection :- Connection
    options :- CorpusOptions]
-  (println ";; Loading BCCWJ corpus" connection options)
+  (log/info ";; Loading BCCWJ corpus" connection options)
   (doseq [{:keys [metadata paragraphs]} ;; FIXME make non-BCCWJ specific
           (take 100 (bccwj/document-seq (:metadata-dir options) (:corpus-dir options)))]
-    (println metadata (count paragraphs))
+    (log/info metadata (count paragraphs))
     @(d/transact-async connection ;; FIXME is this the right transaction granularity?
                        (document-to-datoms paragraphs (update-in metadata [:category] #(->> % next (into []))) options :unidic))))
 
 (s/defn load-data
-  [connection :- s/Any
+  [connection :- Connection
    options :- {s/Keyword CorpusOptions}]
   (load-taiyo-data connection (-> options :taiyo))
   (load-bccwj-data connection (-> options :bccwj)))
@@ -89,8 +89,8 @@
 ;; TODO Think about the structure of the data we return here. Should it be a zipper tree, should different attributes have different types of values (spans for years, and/*or* support for nominal, arbitrary functions (not as EDN, though) as subsets of selection, etc. as maybe types/records/protocols) in the tree?
 ;; How do we encode dependencies between different nodes/levels in the tree? Does it even need to be a tree--why not just a hashmap (cf. limits of nesting in update-in)? Every query on the database should then return a 'possible valid subset' of the metadata to pick from in the front-end? Can these dependencies between attributes be encoded in an index step? How to visualize the different paths possible within the metadata hierarchy tree (i.e. how to show interdependencies between selectables where selecting one box activates or closes off access to another)? Even if there are infinite (or close to infinite) possible paths, is it possible to calculate them on the fly in response to user input?
 
-(s/defn get-all-metadata
-  [connection :- s/Any]
+(s/defn get-all-metadata :- {s/Keyword #{s/Any}}
+  [connection :- Connection]
   (->>
    (d/q '[:find ?attr-name (distinct ?attr-value)
           :in $ [?chosen-attr ...]
@@ -108,18 +108,27 @@
          :document/media
          :document/topic
          :paragraph/tags])
-   flatten
-   (apply hash-map)))
+   (r/reduce
+    (r/monoid
+     (fn [a [k v]]
+       (assoc a k v))
+     (fn [] {})))))
+
+(comment
+  (require '[criterium.core :as c])
+  (c/bench (get-all-metadata (-> reloaded.repl/system :db :connection)))
+  )
 
 (s/defn extract-collocations
   [n :- s/Num
    coll :- [s/Str]]
   (when (>= (count coll) n)
-    (apply vector (subvec coll 0 n) (extract-collocations n (subvec coll 1)))))
+    ;;(log/info (seq coll))
+    (apply vector (subvec coll 0 n) (extract-collocations n (subvec (vec coll) 1)))))
 
 (s/defn index-collocations
   "Should generate collocations matching specified relation and commit them to the database."
-  [connection :- s/Any
+  [connection :- Connection
    relation-fn :- clojure.lang.IFn]
   (d/q '{:find [(diachronic-register-service.data/extract-collocations 2 ?lemma)] ; <- relation-fn
          :with [?sentence]
@@ -131,7 +140,7 @@
 
 (s/defn index-counts
   "Should pre-compute needed meta-information for arbitrary language features."
-  [connection :- s/Any]
+  [connection :- Connection]
   (d/q '{:find [?]}
        (d/db connection)))
 
@@ -149,8 +158,8 @@
    rules :- [{s/Keyword s/Any}]
    e-or-v :- (s/enum :e :v)
    ds]
-  ;; FIXME this implements AND search, while we really want OR+AND+NOT search (or both?)!
-  (println "Filtering... " e-or-v rules)
+  ;; FIXME this implements OR search, while we really want OR+AND+NOT search (or both?)!
+  (log/trace "Filtering... " e-or-v rules)
   (r/fold
    (r/monoid
     (fn [es rule]
@@ -171,13 +180,15 @@
 
 (s/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
   "Returns the frequency distribution of given facet. Specifying a lemma will return that lemma's frequency, otherwise it returns all lemma within the facet."
-  [connection
+  [connection :- Connection
    facets :- [{s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)}]]
   (let [db (d/db connection)
         facets (categorize-rules facets)
         first-rule (ffirst (:document facets)) ;; :document/* only
         rest-rules (into [] (rest (:document facets)))]
-    ;(println "Facets: " facets "\n" first-rule)
+    (log/info "Facets: " facets "\n" first-rule)
+    ;; FIXME intelligently skip over document/paragraph traversal depending on given facets.
+    ;; FIXME generate and use metadata statistics for optimal discrimination.
     (->> first-rule ;; The first rule to search the index with. Should be a good discriminator for the final result.
          (apply d/datoms db :avet)
          (?>> (not-empty rest-rules) (filter-with-rules db rest-rules :e))
@@ -191,8 +202,16 @@
          (r/map (fn [{:keys [v]}] (:word/lemma (d/entity db v))))
          (into [])
          frequencies)))
+
+;; FIXME any way of making this a middleware? and working on d/datoms API?
+(s/defn get-morpheme-graph-timeout
+  [connection]
+  (let [query []
+        args []]
+    (d/query {:query query :args args :timeout 10000})))
+
 (comment
-  (s/with-fn-validation (get-morpheme-graph-2 (-> diachronic-register-service.user/system :db :connection) [{:word/lemma "言う"} {:document/corpus "BCCWJ"} {:document/subcorpus "PM"}])))
+  (s/with-fn-validation (get-morpheme-graph-2 (-> reloaded.repl/system :db :connection) [{:word/lemma "言う"} {:document/corpus "BCCWJ"} {:document/subcorpus "PM"}])))
 
 ;; Search strategy for comparing a word's cooccurrence distribution between two facets:
 ;; 1.  Prepare two datastructures (String->Num maps) to hold the data for both facets. Start at the word level, iterate through all the sentences, and based on their metadata, add to relevant facet datastructure.
@@ -218,25 +237,27 @@
     "Either word or collocation. Or rather word, with collocation graph included in map?"
     {s/Keyword {s/Any s/Any}}))
 
-(s/defn get-morpheme-graph-3 ;;:- (s/maybe {s/Str s/Num})
-  [connection
+(s/defn get-morpheme-graph-3 :- (s/maybe {{s/Keyword s/Any} s/Num})
+  "Returns the metadata frequency distribution of given morpheme. This is the counterpart of get-morpheme-graph-2."
+  [connection :- Connection
    facets :- (s/maybe {s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)})]
   (let [db (d/db connection)
         facets (categorize-rules facets)
         first-rule (ffirst (:word facets)) ;; :word/* only
         rest-rules (into [] (rest (:document facets)))]
-    (println first-rule)
+    (log/info first-rule)
     (->> first-rule
          (apply d/datoms db :avet)
          (?>> rest-rules (filter-with-rules db rest-rules :v))
          (r/mapcat (fn [{:keys [e]}] (d/datoms db :vaet e :sentence/words)))
          (r/mapcat (fn [{:keys [e]}] (d/datoms db :vaet e :paragraph/sentences)))
          (r/mapcat (fn [{:keys [e]}] (d/datoms db :vaet e :document/paragraphs)))
-         (r/map (fn [{:keys [e]}] (:document/title (d/entity db e))))
-         (into []))))
+         (r/map (fn [{:keys [e]}] (select-keys (d/entity db e) [:document/target-audience :document/author-year])))
+         (frequencies))))
 
 (s/defn get-morpheme-graph :- (s/maybe {s/Str s/Num})
-  [connection
+  "Returns collocations of given morpheme occurring in indicated metadata."
+  [connection :- Connection
    lemma :- s/Str
    facets :- (s/maybe {s/Keyword s/Any #_(s/enum [(s/enum s/Str s/Num)] s/Str s/Num)})]
   (let [query (->
@@ -249,39 +270,41 @@
                          [?cword :word/lemma ?clemma]
                          [(!= ?lemma ?clemma)]
 
-                         [?document :document/paragraphs ?paragraph]
-                         [?paragraph :paragraph/sentences ?sentence]]}
+                         ;;[?document :document/paragraphs ?paragraph]
+                         ;;[?paragraph :paragraph/sentences ?sentence]
+                         ]}
 
                ;;(?> facets (update-in [:where] conj '[?e ?a ?v]))
                ;;(?> facets (update-in [:in] conj '[[?e ?a ?v] ...]))
                (?> facets (update-in [:where] (fn [w] (into (make-dynamic-query facets) w))))
-               (doto println))]
+               #_(doto log/info))]
     (->> (d/q query (d/db connection) lemma)
          ffirst)))
 
 (comment
-  (time (s/with-fn-validation (get-morpheme-graph (-> diachronic-register-service.user/system :db :connection) "a" nil)))
+  (time (s/with-fn-validation (get-morpheme-graph (-> reloaded.repl/system :db :connection) "a" nil)))
 
   (time (d/q '{:find [(clojure.core/frequencies ?clemma)], :with [?cword], :in [$ ?lemma], :where [[?word :word/lemma ?lemma] [?sentence :sentence/words ?word] [?sentence :sentence/words ?cword] [?cword :word/lemma ?clemma] [(!= ?lemma ?clemma)]]}
-             (d/db (-> diachronic-register-service.user/system :db :connection))
+             (d/db (-> reloaded.repl/system :db :connection))
              "事"))
   ;; "Elapsed time: 804.504046 msecs" -> 446
 
 
-  (bench (dorun (d/q '{:find [(clojure.core/frequencies ?clemma)], :with [?cword], :in [$ ?lemma], :where [[?paragraph :paragraph/document ?document]
+  (bench (dorun (d/q '{:find [(clojure.core/frequencies ?clemma)], :with [?cword], :in [$ ?lemma], :where [[?document :document/paragraphs ?paragraph]
                        [?paragraph :paragraph/sentences ?sentence] [?word :word/lemma ?lemma] [?sentence :sentence/words ?word] [?sentence :sentence/words ?cword] [?cword :word/lemma ?clemma] [(!= ?lemma ?clemma)]]}
-                     (d/db (-> diachronic-register-service.user/system :db :connection))
+                     (d/db (-> reloaded.repl/system :db :connection))
                      "花")))
 
   ;; Execution time mean : 3.472424 sec
   ;; Execution time std-deviation : 519.436798 ms
+  ;; FIXME what was I trying to do here: too slow? Actually OOMs now... (need 4g)
 
 )
 
 (s/defn get-morpheme-strings :- [{:lemma s/Str s/Keyword s/Num}]
   "Given a datomic connection and a vector of queries, returns the morpheme frequency profile given the query constraints.
   Queries that specify more than one possible value must do so with a vector. TODO functions (>, <, ... + arbitrary functions); make queries ordered so we can take advantage of faster explicit queries in datalog."
-  [connection :- s/Any
+  [connection :- Connection
    queries :- {s/Keyword s/Any #_(s/enum s/Str s/Num [s/Any] clojure.lang.IFn)}]
   (let [common-query '{:find [?lemma
                               (count ?lemma)
@@ -299,7 +322,7 @@
                                    {:where [[?q k v]]}))))
         where-query (update-in dynamic-query
                                [:where]
-                               into '[[?paragraph :paragraph/document ?document]
+                               into '[[?document :document/paragraphs ?paragraph]
                                       [?paragraph :paragraph/sentences ?sentence]
                                       [?sentence :sentence/words ?word]
                                       [?word :word/lemma ?lemma]
@@ -314,12 +337,32 @@
          #_frequencies)))
 
 (comment
-  (time (e! (s/with-fn-validation (get-morpheme-strings (-> diachronic-register-service.user/system :db :connection) {:document/corpus "BCCWJ"}))))
-  (time (get-morpheme-strings (-> diachronic-register-service.user/system :db :connection) {:document/subcorpus ["OC" "OM"] :document/corpus "Sun"})))
+  (time (s/with-fn-validation (get-morpheme-strings (-> reloaded.repl/system :db :connection) {:document/corpus "BCCWJ"})))
+  (time (get-morpheme-strings (-> reloaded.repl/system :db :connection) {:document/subcorpus ["OC" "OM"] :document/corpus "Sun"})) ;; => []
+  )
+
+(s/defn get-morpheme-variants :- {{:s/Keyword s/Str} s/Num}
+  "Return all variants of given morpheme, searched using its orth-base form."
+  ;; FIXME profile: this should be blazing fast!
+  [connection :- Connection
+   orth-base :- s/Str]
+  (->>
+   (d/q '{:find [(pull ?word pattern)]
+          :in [$ ?ob pattern]
+          :where [[?word :word/orth-base ?orth-base]
+                  [(= ?orth-base ?ob)]]}
+        (d/db connection)
+        orth-base
+        [:word/orth-base :word/lemma :word/pos])
+   (mapcat identity)
+   frequencies))
 
 (comment
-  (clj-mecab.parse/with-dictionary-string :unidic (text/parse-sentence-synchronized "今日は。"))
-  (-> (d/entity (d/db (-> diachronic-register-service.user/system :db :connection)) 17592186045420) (.get ":sentence/text"))
+  (time (s/with-fn-validation (get-morpheme-variants (-> reloaded.repl/system :db :connection) "こと"))))
+
+(comment
+  (clj-mecab.parse/with-dictionary-string :unidic (clj-mecab.parse/parse-sentence "今日は。"))
+  (-> (d/entity (d/db (-> reloaded.repl/system :db :connection)) 17592186045420) (.get ":sentence/text"))
   (ns diachronic-register-service.data)
-  (load-data (-> diachronic-register-service.user/system :db :connection) {:metadata-dir "/data/BCCWJ-2012-dvd1/DOC/" :corpus-dir "/data/BCCWJ-2012-dvd1/C-XML/VARIABLE/" :metadata-keys #{:audience :media :topic :gender :category :addressing :target-audience :author-year :subcorpus :basename :title :year}})
-  (d/q '[:find ?e ?v :where [?e :sentence/text ?v]] (d/db (-> diachronic-register-service.user/system :db :connection))))
+  (load-data (-> reloaded.repl/system :db :connection) {:metadata-dir "/data/BCCWJ-2012-dvd1/DOC/" :corpus-dir "/data/BCCWJ-2012-dvd1/C-XML/VARIABLE/" :metadata-keys #{:audience :media :topic :gender :category :addressing :target-audience :author-year :subcorpus :basename :title :year}})
+  (d/q '[:find ?e ?v :where [?e :sentence/text ?v]] (d/db (-> reloaded.repl/system :db :connection))))

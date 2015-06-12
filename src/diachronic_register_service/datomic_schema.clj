@@ -68,6 +68,8 @@
    (-> (attribute :word/pos) type-string cardinality-one)
    (-> (attribute :word/orth-base) type-string cardinality-one)
 
+   ;; TODO: another :word-static/* entity w/o position for faster lookup (perhaps similar to proposal below:)
+
    ;; Need: a way of getting a sequence of morphemes/sentences/paragraphs with tag information.
    ;;(-> (attribute :lemma/stats))
    ])

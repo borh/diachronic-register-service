@@ -7,6 +7,7 @@
             [primitive-math :as p])
   (:import [clojure.lang PersistentHashSet]))
 
+;;(set! *warn-on-reflection* true)
 ;;(p/use-primitive-operators)
 
 (defn log2 [^Number n]
