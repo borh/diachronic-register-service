@@ -23,7 +23,7 @@
 
                  ;;[com.datomic/datomic-free "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
                  [com.datomic/datomic-pro "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
-                 [tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
+                 ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
                  [com.taoensso/encore "1.37.0"]
                  [com.taoensso/timbre "4.0.0"]
@@ -108,11 +108,11 @@
              :taiyo {:corpus-dir "/data/taiyo-corpus/XML/"
                      :metadata-keys #{:corpus :audience :media :topic :gender :category :author-year :subcorpus :basename :title :year}}}})
 
-(require '[tailrecursion.boot-datomic :refer [datomic]])
+;;(require '[tailrecursion.boot-datomic :refer [datomic]])
 
 (deftask run-transactor
   []
-  (comp (wait) (speak) (datomic :license-key (System/getenv "DATOMIC_LICENSE_KEY")
+  (comp (wait) (speak) #_(datomic :license-key (System/getenv "DATOMIC_LICENSE_KEY")
                              :protocol "dev"
                              :host "localhost"
                              :port "4334"
