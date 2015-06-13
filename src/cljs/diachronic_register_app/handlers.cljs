@@ -18,7 +18,7 @@
      :morpheme-variants nil
      :stats nil
      :facets #{:facet-1 :facet-2}
-     :graph {}
+     ;;:graph {}
      :search-state {} #_{:a :loading
                     :b :loading}
      :metadata nil #_{:a nil
@@ -82,9 +82,9 @@
                         (dispatch [:update-search-state ids (if (= "" lemma) :full :lemma)])))))
       db)))
 
-(register-handler :set-metadata (fn [db [_ data facets]] (trace "Setting metadata") (assoc db :metadata (zipmap facets (repeat data)))))
+(register-handler :set-metadata (fn [db [_ data facets]] (info "Setting metadata") (assoc db :metadata (zipmap facets (repeat data)))))
 
-(register-handler :update-metadata (fn [db [_ path]] (trace "Setting state" (get-in db path) "at path" path) (update-in db path not)))
+(register-handler :update-metadata (fn [db [_ path]] (info "Updating metadata state" (get-in db path) "at path" path) (update-in db path not)))
 
 (register-handler :update-lemma (fn [db [_ lemma]] (trace "Updating lemma" lemma) (assoc db :lemma lemma)))
 

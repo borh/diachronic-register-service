@@ -140,11 +140,11 @@
                          :component-did-mount (tree-box-did-mount id d3-tree)}))
 
 (defn graph-box-render [id]
-  (trace "Rendering graph-box" id)
+  (info "Rendering graph-box" id)
   [:div {:id (str "d3-node-" (name id)) :react-key (str "d3-node-" (name id))} [:svg]])
 
 (defn graph-box-did-mount [id lemma graph]
-  (trace "graph-box-did-mount")
+  (info "graph-box-did-mount")
   (force/make-force-graph! id lemma graph))
 
 (defn graph-box
@@ -158,18 +158,31 @@
   [id]
   (let [search-state (subscribe [:search-state])
         graph (subscribe [:graph])
-        lemma (subscribe [:lemma])]
+        lemma (subscribe [:lemma])
+        metadata (subscribe [:metadata])]
     (fn []
-      (trace (-> @search-state id))
+      (info "search-state" (-> @search-state id))
+      ;;(info "graph" @graph)
+      ;;(info "metadata" @metadata)
       [:div
        (case (-> @search-state id)
-         :loading [:p "Loading..."]
-         nil [:p "Loading..."]
+         :loading [:p "Searching..."]
+         nil [:p "Not searching."]
          :failed [:p "Search timed out. Please try again!"]
-         :full (if (not-empty (-> @graph id))
-                 [:div [graph-box id @lemma (id @graph)]]   ;; TODO would making the d3 node at this level help?
+         :full (if (not-empty (-> @metadata id))
+                 [:div
+                  [:div [:p (str "Results for " (str/capitalize (name id)) " with metadata "
+                                 (str/join
+                                  ", "
+                                  (for [[_ ms] (get @metadata id)
+                                        [_ vs] ms
+                                        [v-name v] vs
+                                        :when(:checked v)]
+                                    (:name v))))]]
+                  (when (not-empty (id @graph))
+                    [graph-box id @lemma (id @graph)])]   ;; TODO would making the d3 node at this level help?
                  [:p "No results found."])
-         :lemma (if (not-empty (-> @graph id))
+         :lemma (if (not-empty (-> @metadata id))
                   [:table.table
                    [:thead [:tr [:th "Lemma"] [:th "Frequency"]]]
                    [:tbody
@@ -261,6 +274,7 @@
         [:div.row (stats-box)]  ;; FIXME facet-box should be dynamically created/removed
         (mapv
          (fn [id]
+           (info "ID:----------->" id)
            [:div {:class (str "col-md-" (int (/ 12 (count @facets))))} ;;.col-md-6
             [results-box id]])
          @facets))

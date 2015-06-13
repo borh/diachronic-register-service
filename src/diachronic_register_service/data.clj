@@ -65,7 +65,7 @@
    options :- CorpusOptions]
   (log/info ";; Loading Taiyo corpus" connection options)
   (doseq [{:keys [metadata paragraphs]}
-          (take 100 (kokken/document-seq (:corpus-dir options)))]
+          (take 500 (kokken/document-seq (:corpus-dir options)))]
     (println metadata (count paragraphs))
     @(d/transact-async connection ;; FIXME is this the right transaction granularity? try 1000
                        (document-to-datoms paragraphs metadata options :unidic-MLJ))))
@@ -75,7 +75,7 @@
    options :- CorpusOptions]
   (log/info ";; Loading BCCWJ corpus" connection options)
   (doseq [{:keys [metadata paragraphs]} ;; FIXME make non-BCCWJ specific
-          (take 100 (bccwj/document-seq (:metadata-dir options) (:corpus-dir options)))]
+          (take 500 (bccwj/document-seq (:metadata-dir options) (:corpus-dir options)))]
     (log/info metadata (count paragraphs))
     @(d/transact-async connection ;; FIXME is this the right transaction granularity?
                        (document-to-datoms paragraphs (update-in metadata [:category] #(->> % next (into []))) options :unidic))))
@@ -359,6 +359,26 @@
 
 (comment
   (time (s/with-fn-validation (get-morpheme-variants (-> reloaded.repl/system :db :connection) "こと"))))
+
+;; TODO: sentence search based on word ent
+(s/defn get-morpheme-sentences :- {{:s/Keyword s/Str} s/Num}
+  "Return all variants of given morpheme, searched using its orth-base form."
+  ;; FIXME profile: this should be blazing fast!
+  [connection :- Connection
+   orth-base :- s/Str
+   limit :- s/Num]
+  (->>
+   (d/q '{:find [?text]
+          :in [$ ?ob]
+          :where [[?word :word/orth-base ?orth-base]
+                  [(= ?orth-base ?ob)]
+                  [?sentence :sentence/words ?word]
+                  [?sentence :sentence/text ?text]]}
+        (d/db connection)
+        orth-base)))
+
+(comment
+  (time (s/with-fn-validation (get-morpheme-sentences (-> reloaded.repl/system :db :connection) "こと" 5))))
 
 (comment
   (clj-mecab.parse/with-dictionary-string :unidic (clj-mecab.parse/parse-sentence "今日は。"))

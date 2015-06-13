@@ -96,7 +96,6 @@
     {:common common-vocab
      :a-only a-only-vocab
      :b-only b-only-vocab
-     ;; FIXME divide by zero?
-     :common-prop  (if-not (empty? total-vocab) 0.0 (double (/ (count common-vocab) (count total-vocab)))) ;; jaccard-similarity?
+     :common-prop  (if (empty? total-vocab) 0.0 (double (/ (count common-vocab) (count total-vocab)))) ;; jaccard-similarity?
      :a-unique-prop (if-not (empty? a-vocab) (double (/ (count a-only-vocab) (count a-vocab))))
      :b-unique-prop (if-not (empty? b-vocab) (double (/ (count b-only-vocab) (count b-vocab))))}))
