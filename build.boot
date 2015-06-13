@@ -148,6 +148,15 @@
    (run :main-namespace "diachronic-register-service.core" :arguments [#'dev-system])
    (wait)))
 
+(deftask process
+  "Process corpora into database from the command line"
+  []
+  (comp
+   (environ :env (merge config
+                        {:datomic {:reload? true
+                                   :delete-database? true}}))
+   (run :main-namespace "diachronic-register-service.core" :arguments [#'prod-system])))
+
 ;; export TIMBRE_LEVEL=':error'
 (deftask prod-run
   "Run a production system from the command line"
