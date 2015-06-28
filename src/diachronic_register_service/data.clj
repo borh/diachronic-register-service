@@ -210,6 +210,33 @@
                  (fn [] {}))))]
       k (transform-metadata connection [k v])))
 
+(s/defn categorize-rules :- {s/Keyword [Facet]}
+  [rules :- [Facet]]
+  (->> rules
+       (group-by (comp keyword namespace ffirst))))
+
+;; d/filter all we can before using datalog?
+
+(s/defn filter-with-rules
+  [db
+   rules :- [Facet]
+   e-or-v :- (s/enum :e :v)
+   ds]
+  ;; FIXME this implements OR search, while we really want OR+AND+NOT search (or both?)!
+  (log/trace "Filtering... " e-or-v rules)
+  (r/fold
+   (r/monoid
+    (fn [es rule]
+      (let [[rule-k rule-v] (first rule)]
+        (r/filter (fn [e]
+                    (let [v (rule-k (d/entity db (e-or-v e)))]
+                      (if (set? v)
+                        (contains? v rule-v)
+                        (= rule-v v))))
+                  es)))
+    (fn [] ds))
+   rules))
+
 (s/defn get-metadata-statistics :- (s/maybe {s/Keyword (s/either IndexedTree {s/Any s/Any})})
   "Returns the metadata frequency distribution of given facet."
   [connection :- Connection
@@ -309,33 +336,6 @@
    (for [[k v] facets]
      (let [?q (symbol (str "?" (namespace k)))]
        [?q k v]))))
-
-;; d/filter all we can before using datalog?
-
-(s/defn filter-with-rules
-  [db
-   rules :- [Facet]
-   e-or-v :- (s/enum :e :v)
-   ds]
-  ;; FIXME this implements OR search, while we really want OR+AND+NOT search (or both?)!
-  (log/trace "Filtering... " e-or-v rules)
-  (r/fold
-   (r/monoid
-    (fn [es rule]
-      (let [[rule-k rule-v] (first rule)]
-        (r/filter (fn [e]
-                    (let [v (rule-k (d/entity db (e-or-v e)))]
-                      (if (set? v)
-                        (contains? v rule-v)
-                        (= rule-v v))))
-                  es)))
-    (fn [] ds))
-   rules))
-
-(s/defn categorize-rules :- {s/Keyword [Facet]}
-  [rules :- [Facet]]
-  (->> rules
-       (group-by (comp keyword namespace ffirst))))
 
 (s/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
   "Returns the frequency distribution of given facet. Specifying a lemma will return that lemma's frequency, otherwise it returns all lemma within the facet."
