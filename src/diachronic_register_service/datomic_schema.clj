@@ -8,7 +8,17 @@
    (-> (attribute :document/subcorpus) type-string indexed cardinality-one)
    (-> (attribute :document/corpus)    type-string indexed cardinality-one)
    ;; (-> (attribute :document/metadata)  type-ref    cardinality-many component) ;; Not used??
-   (-> (attribute :document/category)  type-string indexed cardinality-many)
+   (-> (attribute :document/category)  type-ref indexed cardinality-one component) ;; FIXME Tree structure
+   ;; TODO Actually, some metadata should be at subcorpus/corpus levels
+   ;; TODO Rose tree
+   ;;(-> (attribute :document/category-1) type-string indexed cardinality-one)
+   ;;(-> (attribute :document/category-2) type-string indexed cardinality-one)
+   ;;(-> (attribute :document/category-3) type-string indexed cardinality-one)
+   ;;(-> (attribute :document/category-4) type-string indexed cardinality-one)
+
+   (-> (attribute :category/name)      type-string indexed cardinality-one)
+   (-> (attribute :category/child)     type-ref cardinality-one component)
+
    (-> (attribute :document/basename)  type-string cardinality-one) ;; Not always unique (e.g. The Sun)
    (-> (attribute :document/title)     type-string cardinality-one)
    (-> (attribute :document/gender)    type-ref    indexed cardinality-one (docstring "document author's gender"))
@@ -23,6 +33,7 @@
    (-> (attribute :document/audience)    type-string indexed cardinality-one (docstring "c-code audience"))
    (-> (attribute :document/media)       type-string indexed cardinality-one (docstring "c-code media"))
    (-> (attribute :document/topic)       type-string indexed cardinality-one (docstring "c-code topic"))
+   ;; TODO :document/morpheme-count :document/sentence-count
 
    ;; FIXME: how do we get DP?
    ;; (-> (attribute :document/morphemes))

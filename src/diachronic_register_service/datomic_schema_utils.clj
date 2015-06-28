@@ -54,10 +54,12 @@
   (-> (attribute (keyword (str (name ns-name) "/" (name ident-name))))
       (docstring (str (name ident-name) " in " (name ns-name) " (ordinal)"))
       type-long
+      indexed
       cardinality-one))
 
 (defn make-boolean-schema [ns-name ident-name]
   (-> (attribute (keyword (str (name ns-name) "/" (name ident-name))))
       (docstring (str (name ident-name) " in " (name ns-name) " (boolean)"))
       type-boolean
+      indexed
       cardinality-one))
