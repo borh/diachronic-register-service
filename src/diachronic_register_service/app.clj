@@ -29,17 +29,17 @@
   component/Lifecycle
 
   (start [component]
-    (println datomic-uri corpora delete-database? reload?)
-    (println ";; Starting database at" datomic-uri)
-    #_(when delete-database?
-      (println ";; Deleting database")
+    (when delete-database?
+      (log/info ";; Deleting database and sleeping for 60s...")
       (try (d/delete-database datomic-uri)
-           (catch Exception e (println ";; Could not delete database:" e))))
+           (catch Exception e (log/info ";; Could not delete database:" e)))
+      (Thread/sleep 60000)) ;; Datomic does not allow reuse of database name for up to a minute.
+    (log/info ";; Starting database at" datomic-uri)
     (let [created? (d/create-database datomic-uri)
           connection (d/connect datomic-uri)]
-      (println "created?" created?)
+      (log/info "created?" created?)
       (when reload?
-        (println ";; Recreating database")
+        (log/info ";; Recreating database")
         @(d/transact connection schema/schema)
         (data/load-data connection corpora))
       (-> component
