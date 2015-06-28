@@ -5,9 +5,11 @@
             [diachronic-register-service.data :as data]
             [reloaded.repl :refer [system]]))
 
-;; Utils
+;; # Messaging
 
-;; FIXME there is now an official way to do this
+;; ## Utils
+
+;; FIXME there is now an official way to do this, but only for d/q queries
 (defmacro with-timeout [millis & body]
   `(let [future# (future ~@body)]
      (try
@@ -17,7 +19,7 @@
            (future-cancel future#)
            nil)))))
 
-;; Utils end
+;; ## Setup
 
 (defmulti event-msg-handler :id) ; Dispatch on event-id
 ;; Wrap for logging, catching, etc.:
@@ -32,36 +34,52 @@
     (when-not (:dummy-reply-fn (meta ?reply-fn))
       (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
 
+;; ## Search API
+
 (defmethod event-msg-handler :query/all-metadata
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
-  (?reply-fn (doto (with-timeout 10000 (data/get-all-metadata (-> system :db :connection))) log/info)))
+  (?reply-fn (data/get-all-metadata (-> system :db :connection))))
 
 (defmethod event-msg-handler :query/morpheme-variants
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
-  (?reply-fn (doto
-                 (with-timeout 10000
-                   (tree/seq-to-tree
-                    (for [[kvs freq]
-                          (data/get-morpheme-variants (-> system :db :connection) ?data)]
-                      ;; Names in tree need to be unique:
-                      (let [pos (str "POS=" (:word/pos kvs))
-                            lemma (str pos "/lemma=" (:word/lemma kvs))
-                            orth-base (str lemma "/orth-base=" (:word/orth-base kvs))]
-                        {:genre [pos lemma orth-base]
-                         :count freq}))
-                    {:root-name ?data}))
-               (comp println pr-str))))
+  (?reply-fn
+   (doto
+       (with-timeout 10000
+         (tree/seq-to-tree
+          (for [[kvs freq]
+                (data/get-morpheme-variants (-> system :db :connection) ?data)]
+            ;; Names in tree need to be unique:
+            (let [pos (str "POS=" (:word/pos kvs))
+                  lemma (str pos "/lemma=" (:word/lemma kvs))
+                  orth-base (str lemma "/orth-base=" (:word/orth-base kvs))]
+              {:genre [pos lemma orth-base]
+               :count freq}))
+          {:root-name ?data}))
+     (comp println pr-str))))
 
-(defmethod event-msg-handler :query/lemma
-  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
-  ;; ordering?? more specific first... (i.e. topic >> corpus etc...)
-  ;; FIXME: http://docs.datomic.com/query.html#timeout
-  (?reply-fn (doto (with-timeout 10000 (data/get-morpheme-graph-2 (-> system :db :connection) (doto ?data log/info)))
-               (comp println pr-str))))
+(comment
+  (defmethod event-msg-handler :query/lemma
+    [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+    ;; ordering?? more specific first... (i.e. topic >> corpus etc...)
+    ;; FIXME: http://docs.datomic.com/query.html#timeout
+    (?reply-fn (doto (with-timeout 10000 (data/get-morpheme-graph-2 (-> system :db :connection) (doto ?data log/info)))
+                 (comp println pr-str)))))
 
 (defmethod event-msg-handler :query/graphs
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
-  (?reply-fn (with-timeout 10000 (data/get-graphs (-> system :db :connection) ?data))))
+  (log/info ":query/graphs" ?data)
+  (?reply-fn
+   (when ?data
+     (doto (with-timeout 10000 (data/get-graphs (-> system :db :connection) ?data))))))
+
+(defmethod event-msg-handler :query/metadata-statistics
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (log/info ":query/metadata-statistics" ?data)
+  (?reply-fn
+   (when ?data
+     (doto (with-timeout 10000 (data/get-metadata-statistics (-> system :db :connection) ?data))))))
+
+;; ## Connection related logging
 
 (defmethod event-msg-handler :chsk/ws-ping
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
