@@ -14,7 +14,9 @@
 
 (register-sub :metadata (fn [db] (reaction (:metadata @db))))
 
-(register-sub :lemma (fn [db] (reaction (:lemma @db))))
+(register-sub :query-string (fn [db] (reaction (:query-string @db))))
+
+(register-sub :morpheme (fn [db] (reaction (:morpheme @db))))
 
 (register-sub :morpheme-variants (fn [db] (reaction (:morpheme-variants @db))))
 
