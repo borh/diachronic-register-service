@@ -1,32 +1,32 @@
 (set-env!
  :source-paths   #{"src" "src/cljs"}
  :resource-paths #{"resources"}
- :dependencies '[[adzerk/boot-cljs      "0.0-3269-2" :scope "test"]
-                 [adzerk/boot-reload    "0.2.6"      :scope "test"]
+ :dependencies '[[adzerk/boot-cljs      "0.0-3308-0" :scope "test"]
+                 [adzerk/boot-reload    "0.3.1"      :scope "test"]
                  [environ "1.0.0"]
-                 [danielsz/boot-environ "0.0.3" :scope "test"]
+                 [danielsz/boot-environ "0.0.4" :scope "test"]
 
                  [org.clojure/tools.nrepl "0.2.10"]
 
-                 ;;[org.clojure/clojure "1.7.0-RC1"]
-                 [org.clojure/clojure "1.6.0"]
+                 [org.clojure/clojure "1.7.0-RC2"]
+                 ;;[org.clojure/clojure "1.6.0"]
                  [org.clojure/clojurescript "0.0-3308" :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
 
-                 [clj-mecab "0.4.1.2"]
-                 [corpus-utils "0.1.5"]
-                 [d3-compat-tree "0.0.4"]
+                 [clj-mecab "0.4.1.3"]
+                 [corpus-utils "0.1.6"]
+                 [d3-compat-tree "0.0.5"]
                  [org.apache.commons/commons-compress "1.9"]
                  [org.tukaani/xz "1.5"]
                  [me.raynes/fs "1.4.6"]
 
                  ;;[com.datomic/datomic-free "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
-                 [com.datomic/datomic-pro "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
+                 [com.datomic/datomic-pro "0.9.5173" :exclusions [org.slf4j/slf4j-nop joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
                  [com.taoensso/encore "1.37.0"]
-                 [com.taoensso/timbre "4.0.0"]
+                 [com.taoensso/timbre "4.0.2"]
                  [com.cognitect/transit-clj  "0.8.275"]
                  [com.cognitect/transit-cljs "0.8.220"]
                  [com.taoensso/sente "1.5.0"]
@@ -56,10 +56,10 @@
                  ;;[io.pedestal/pedestal.service-tools "0.4.0"]
                  ;;[io.pedestal/pedestal.immutant "0.4.0" :exclusions [org.immutant/web]]
                  [compojure "1.3.4" :exclusions [org.clojure/clojure instaparse]]
-                 [instaparse "1.4.0" :exclusions [org.clojure/clojure]]
+                 [instaparse "1.4.1" :exclusions [org.clojure/clojure]]
                  ;;[gate "0.0.19" :exclusions [potemkin]]
                  ;;[bidi "1.19.0"]
-                 [org.immutant/web "2.0.1"]
+                 [org.immutant/web "2.0.2"]
                  [hiccup "1.0.5"]
 
                  ;; ClojureScript-specific
