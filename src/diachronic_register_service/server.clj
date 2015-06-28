@@ -25,13 +25,19 @@
   (html5
    {:lang "ja" :encoding "UTF-8"}
    (include-css "bootstrap.min.css")
-   (include-css "bootstrap-theme.min.css")
+   ;;(include-css "bootstrap-theme.min.css")
+   (include-css "roboto.min.css")
+   (include-css "material.min.css")
+   (include-css "ripples.min.css")
+
+   (include-css "main.css")
+
    (include-js "jquery-2.1.4.min.js")
    (include-js "bootstrap.min.js")
-   [:style "body {padding:65px} navbar-nav > button > a {line-height:1em}"]
-   #_[:style (css [:body {:background (color/darken (hsl 0 0 100) 1)
-                          :padding "65px"}
-                   :navbar-nav [:button [:a {:line-height "1em"}]]])]
+   (include-js "ripples.min.js")
+   (include-js "material.min.js")
+   [:script "$(document).ready(function() { $.material.init(); $.material.ripples(); $.material.input(); $.material.checkbox(); $.material.radio(); });"]
+
    [:meta {:content "text/html;charset=utf-8" :http-equiv "Content-Type"}]
    [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
    [:div {:id "app"}]
@@ -45,6 +51,7 @@
   (POST "/login" req (login! req))
   ;;
   (route/resources "/react" {:root "react"})
+  (route/resources "/public" {:root "public"})
   (route/resources "/") ; Static files, notably public/main.js (our cljs target)
   (route/not-found "<h1>Page not found</h1>"))
 
