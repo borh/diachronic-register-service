@@ -4,6 +4,7 @@
             [com.stuartsierra.component :as component]
             [system.core :refer [defsystem]]
             [environ.core :refer [env]]
+            [taoensso.timbre :as log]
 
             [clojure.core.cache :as cache]
             [datomic.api :as d]
@@ -48,7 +49,7 @@
           (assoc :db (d/db connection)))))
 
   (stop [component]
-    (println ";; Stopping database")
+    (log/info ";; Stopping database")
     (dissoc component :uri :connection :db)))
 
 (defn new-database [{:keys [type host port name delete-database? reload?]} corpora]
