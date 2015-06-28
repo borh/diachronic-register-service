@@ -15,17 +15,17 @@
 
 (defn setup-force-layout [force-layout graph]
   (info "setup-force-layout")
-  ;;(println "sfl:" graph)
-  ;;(println "sfl:" force-layout)
+  ;;(info "sfl:" graph)
+  ;;(info "sfl:" force-layout)
   (.. force-layout
       (nodes (.-nodes graph))
       (links (.-links graph))
       start))
 
 (defn build-svg [id width height]
-  (info "Selecting" (str "#d3-node-" (name id)) (.. js/d3 (select (str "d3-node-" (name id)))))
+  (info "Selecting" (str "#d3-graph-" (name id)) (.. js/d3 (select (str "d3-graph-" (name id)))))
   (.. js/d3
-      (select (str "div#d3-node-" (name id)))
+      (select (str "div#d3-graph-" (name id)))
       (append "svg")
       (attr "width" width)
       (attr "height" height)))
@@ -65,34 +65,40 @@
 
 (defn ->d3-graph [lemma graph] ;; TODO move server-side
   (clj->js
-    (let [node-index (into {} (map-indexed (fn [i [k _]] [k i]) (into [[lemma 100]] graph)))
-          nodes #_[{:name "a" :id 1 :size 1 :x 1 :y 1}
-                 {:name "b" :id 2 :size 2 :x 2 :y 2}
-                 {:name "c" :id 3 :size 3 :x 3 :y 3}]
-          (into [{:name lemma :id (get node-index lemma) :size 100 :x 100 :y 100}]
-                (for [[k v] graph]
-                  {:name (name k)                      :x 120 :y 120
-                   :id   (get node-index k)
-                   :size v}))
-          links #_[{:source "a" :target "b" :strength 2}
-                 {:source "a" :target "c" :strength 1}]
-          (for [[k v] graph]
-            {:source   (get node-index lemma)
-             :target   (get node-index k)
-             :strength v})]
-      (println (take 10 node-index))
-      (println (filter #(< % 0) (map :size nodes)))
-      (println (filter #(< % 0) (map :strength links)))
-      ;; insert(n, d, x, y, x1, y1, x2, y2);
-      {:nodes nodes
-       :links links})))
+   (let [node-index (into {} (map-indexed (fn [i [k _]] [k i]) (into [[lemma 100]] graph)))
 
+         nodes #_[{:name "a" :id 1 :size 1 :x 1 :y 1}
+                  {:name "b" :id 2 :size 2 :x 2 :y 2}
+                  {:name "c" :id 3 :size 3 :x 3 :y 3}]
+         (into [{:name lemma :id (get node-index lemma)
+                 :size 100 :x 100 :y 100}]
+               (for [[k v] graph]
+                 {:x 120 :y 120
+                  :name (name k)
+                  :id   (get node-index k)
+                  :size v}))
+
+         links #_[{:source "a" :target "b" :strength 2}
+                  {:source "a" :target "c" :strength 1}]
+         (for [[k v] graph]
+           {:source   (get node-index lemma)
+            :target   (get node-index k)
+            :strength v})]
+     ;;(info (take 10 node-index))
+     ;;(info (filter #(< % 0) (map :size nodes)))
+     ;;(info (filter #(< % 0) (map :strength links)))
+     ;; insert(n, d, x, y, x1, y1, x2, y2);
+     {:nodes nodes
+      :links links})))
+
+;; http://www.coppelia.io/2014/07/an-a-to-z-of-extra-features-for-the-d3-force-layout/
 (defn make-force-graph! [id lemma graph] ;; FIXME width height params
   (let [graph (->d3-graph lemma graph)
         width 500
         height 500
         force-layout (build-force-layout width height)
         svg (build-svg id width height)]
+    (.log js/console svg)
     (info "Creating force graph" id)
     (setup-force-layout force-layout graph)
     (let [links (build-links svg (.-links graph))
@@ -153,33 +159,72 @@
       enter ;; FIXME where to remove?
       (append "g")
       (attr "class" "node")
-      (attr "transform" #(str "translate(" (.. % -x) "," (.. % -y) ")"))
+      (attr "transform" #(str "translate(" (.. % -y) "," (.. % -x) ")"))))
+
+(defn add-node-text! [nodes-element]
+  (.. nodes-element
       (append "text")
-      (attr "cx" 12)
-      (attr "cy" ".35em")
-      (text #(.-name %))
-      ;;(attr "transform" #(str "translate(" (.. % -x) "," (.. % -y) ")"))
-      ;;(append "text")
-      ;;(attr "dx" #(if (.-children %) -8 8))
-      ;;(attr "dy" 3)
-      ;;(attr "text-anchor" #(if (.-children %) "end" "start"))
-      ;;(text #(.-name %))
-      ))
+      (attr "dx" #(if (.-children %) -8 8))
+      (attr "dy" 1)
+      (attr "text-anchor" #(if (.-children %) "end" "start"))
+      (text #(.-name %))))
+
+(defn add-node-circle! [nodes-element]
+  (.. nodes-element
+      (append "circle")
+      (attr "r" (fn [d] (inc (.log js/Math (.-count d)))))))
+
+(defn build-tree-links [svg links]
+  ;;(info "build-links" svg links)
+  (.. svg
+      (selectAll ".link")
+      (data links)
+      enter ;; FIXME where to remove?
+      (append "path")
+      (attr "class" "link")
+      (attr "d" (.. js/d3 -svg diagonal (projection (fn [d] (array (.-y d) (.-x d))))))))
+
+;;var width = parseInt(d3.select("#graph").style("width")) - margin*2,
+;;height = parseInt(d3.select("#graph").style("height")) - margin*2;
 (defn make-tree-graph! [id d3-tree] ;; FIXME width height params
   (let [data (clj->js d3-tree)
-        _ (info "d3-tree" d3-tree)
-        width 600
-        height 400
-        tree-layout (.. js/d3 -layout tree (size (array width height)))
+        margin-top 10
+        margin-bottom 10
+        margin-left 250
+        margin-right 250
+        ->parsePx (fn [s]
+                    (-> s
+                        (clojure.string/replace "px" "")
+                        js/parseInt))
+        width (- (->parsePx
+                  (.. js/d3
+                      (select (str "div#d3-tree-" (name id)))
+                      (style "width")))
+                 margin-left
+                 margin-right)
+        height (+ 150 ;; FIXME should just be static?
+                  (- (->parsePx
+                      (.. js/d3
+                          (select (str "div#d3-tree-" (name id)))
+                          (style "height")))
+                     margin-top
+                     margin-bottom))
+
+        tree-layout (.. js/d3 -layout tree (size (array height width)))
         svg (.. js/d3
                 (select (str "div#d3-tree-" (name id)))
                 (append "svg")
-                (attr "width" width)
-                (attr "height" height))
+                (attr "width" (+ width margin-left margin-right))
+                (attr "height" (+ height margin-top margin-bottom))
+                (append "g")
+                (attr "transform" #(str "translate(" margin-left "," margin-top ")")))
         nodes-data (.. tree-layout (nodes data))
         links-data (.. tree-layout (links nodes-data))
-        ;;_ (info "nodes-data" (count nodes-data))
-        ;;_ (info "links-data" (count links-data))
-        links (build-links svg links-data)
+        _ (.log js/console nodes-data)
+        _ (.log js/console links-data)
+        links (build-tree-links svg links-data)
         nodes (build-tree-nodes svg nodes-data tree-layout)]
-    (info "done making tree graph")))
+    (doto nodes
+      add-node-text!
+      add-node-circle!)))
+(defn update-tree-graph! [id old-state new-state])
