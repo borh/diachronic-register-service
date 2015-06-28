@@ -7,15 +7,10 @@
 
             [re-frame.core :refer [dispatch]]))
 
-
-(def packer
-  ;;"Defines our packing (serialization) format for client<->server comms."
-  ;;:edn ; Default
-  (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit deps
-  )
+(def packer (sente-transit/get-flexi-packer :edn))
 
 (let [{:keys [chsk ch-recv send-fn state]}
-      (sente/make-channel-socket! "/chsk" ; Note the same URL as before
+      (sente/make-channel-socket! "/chsk" ; Note the same URL as before ;; FIXME This should match URL on server and possible proxy prefix!
                                   {:type :auto :packer packer})]
   (def chsk chsk)
   (def ch-chsk ch-recv) ; ChannelSocket's receive channel
