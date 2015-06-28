@@ -55,6 +55,8 @@
 
 (dispatch-sync [:initialize-app-state])
 (dispatch-sync [:get-metadata])
+;;(dispatch-sync [:add-facet :facet-1])
+;;(dispatch-sync [:add-facet :facet-2])
 
-(s/with-fn-validation                                     ;; Remove for production.
-  (reagent/render [views/app] (.getElementById js/document "app")))
+(s/set-fn-validation! ^boolean goog.DEBUG)
+(reagent/render [views/app] (.getElementById js/document "app"))
