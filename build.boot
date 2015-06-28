@@ -135,7 +135,7 @@
    (environ :env config)
    (watch :verbose true)
    (system :sys #'dev-system :auto-start true :hot-reload true :files ["handler.clj"])
-   (reload)
+   (reload :asset-path "public")
    (cljs :source-map true)
    (repl :server true)))
 
@@ -152,18 +152,19 @@
   "Process corpora into database from the command line"
   []
   (comp
-   (environ :env (merge config
+   (environ :env (merge-with merge config
                         {:datomic {:reload? true
                                    :delete-database? true}}))
-   (run :main-namespace "diachronic-register-service.core" :arguments [#'prod-system])))
+   (run :main-namespace "diachronic-register-service.core" :arguments [#'prod-system])
+   (wait)))
 
 ;; export TIMBRE_LEVEL=':error'
 (deftask prod-run
   "Run a production system from the command line"
   []
   (comp
-   (environ :env (merge config
-                        {:http-port 8008
+   (environ :env (merge-with merge config
+                        {:http-port 80
                          :repl-port 8009}))
    (cljs :optimizations :advanced)
    (run :main-namespace "diachronic-register-service.core" :arguments [#'prod-system])
