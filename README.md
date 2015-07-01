@@ -8,7 +8,7 @@ The diachronic register service system is being developed to provide a convenien
 
 ## Development
 
-Development is done using [boot](https://getboot.com).
+Development is done using [boot](http://boot-clj.com/).
 
 ## Trying it out
 
