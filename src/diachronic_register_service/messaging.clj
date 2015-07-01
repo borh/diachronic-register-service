@@ -62,12 +62,12 @@
     [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
     ;; ordering?? more specific first... (i.e. topic >> corpus etc...)
     ;; FIXME: http://docs.datomic.com/query.html#timeout
-    (?reply-fn (doto (with-timeout 10000 (data/get-morpheme-graph-2 (-> system :db :connection) (doto ?data log/info)))
+    (?reply-fn (doto (with-timeout 60000 (data/get-morpheme-graph-2 (-> system :db :connection) (doto ?data log/info)))
                  (comp println pr-str)))))
 
 (defmethod event-msg-handler :query/graphs
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
-  (log/info ":query/graphs" ?data)
+  (log/trace ":query/graphs" ?data)
   (?reply-fn
    (when ?data
      (doto (with-timeout 10000 (data/get-graphs (-> system :db :connection) ?data))))))

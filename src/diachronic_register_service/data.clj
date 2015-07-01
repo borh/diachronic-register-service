@@ -7,6 +7,7 @@
 
             [clojure.core.reducers :as r]
             [clojure.set :as set]
+            [clojure.string :as str]
 
             [loom.graph :as g]
             [loom.alg :as a]
@@ -16,7 +17,7 @@
             [corpus-utils.kokken :as kokken]
             [corpus-utils.text :as text]
             [corpus-utils.document :refer [SentencesSchema]]
-            [d3-compat-tree.tree :as tree :refer [IndexedTree]]
+            [d3-compat-tree.tree :as tree :refer [IndexedTreeNode]]
 
             [diachronic-register-service.schemas :refer [CorpusOptions StatMap Metadata->StatMap Document Facet StringNumberMap MetadataMap]]
             [diachronic-register-service.stats :as stats])
@@ -81,7 +82,7 @@
   (log/info ";; Loading Taiyo corpus" connection options)
   (doseq [{:keys [metadata paragraphs]}
           (take 100 (kokken/document-seq (:corpus-dir options)))]
-    (println metadata (count paragraphs))
+    (log/info metadata (count paragraphs))
     @(d/transact-async connection ;; FIXME is this the right transaction granularity? try 1000
                        (document-to-datoms paragraphs metadata options :unidic-MLJ))))
 
@@ -104,6 +105,11 @@
 ;; TODO Think about the structure of the data we return here. Should it be a zipper tree, should different attributes have different types of values (spans for years, and/*or* support for nominal, arbitrary functions (not as EDN, though) as subsets of selection, etc. as maybe types/records/protocols) in the tree?
 ;; How do we encode dependencies between different nodes/levels in the tree? Does it even need to be a tree--why not just a hashmap (cf. limits of nesting in update-in)? Every query on the database should then return a 'possible valid subset' of the metadata to pick from in the front-end? Can these dependencies between attributes be encoded in an index step? How to visualize the different paths possible within the metadata hierarchy tree (i.e. how to show interdependencies between selectables where selecting one box activates or closes off access to another)? Even if there are infinite (or close to infinite) possible paths, is it possible to calculate them on the fly in response to user input?
 
+(defn prettify-name [s]
+  (-> (if (or (string? s) (keyword? s)) s (str s))
+      name
+      (str/replace "-" " ")))
+
 (defn deep-merge-with [f & maps]
   (apply
     (fn m [& maps]
@@ -121,15 +127,17 @@
 
 (s/defn transform-metadata :- (s/either [(s/either s/Str s/Keyword s/Num)]
                                         #{(s/either s/Str s/Keyword s/Num)}
-                                        IndexedTree)
+                                        IndexedTreeNode)
   [connection :- Connection
    [k v] :- [(s/one s/Keyword "k") s/Any]]
   (case k
 
     :document/gender (->> v
                           (sequence (map (fn [e] (:db/ident (d/entity (d/db connection) e)))))
-                          sort
-                          (into []))
+                          frequencies
+                          (map (fn [[k freq]] {k {:name (prettify-name k) :count freq :checked false}}))
+                          (apply merge)
+                          #_(into []))
 
     :document/category
     (tree/seq-to-indexed-tree
@@ -143,12 +151,16 @@
                   (category-map->vector []))))
           (filter seq)
           (map (fn [cs] {:genre cs :checked false :count 1})))
-     {:root-name "Categories" :merge-fns {:count + :checked (fn [a b] a)}})
+     {:root-name "Categories" :merge-fns {:count + :checked (fn [& xs] (or (first xs) false))}})
 
     ;; Else:
-    (into [] (sort v))))
+    (->> v
+         frequencies
+         (map (fn [[k freq]] {k {:name (prettify-name k) :count freq :checked false}}))
+         (apply merge))
+    #_(into [] (sort v))))
 
-(def metadata-records
+(def metadata-records ;; TODO ordering should reflect optimal query pattern
   [:document/subcorpus
    :document/corpus
    :document/category
@@ -182,7 +194,7 @@
 
 (s/defn get-all-metadata :- {s/Keyword (s/either #{(s/either s/Str s/Keyword s/Num)}
                                                  [(s/either s/Str s/Keyword s/Num)]
-                                                 IndexedTree)}
+                                                 IndexedTreeNode)}
   [connection :- Connection]
   (for-map [[k v]
             (->>
@@ -210,44 +222,82 @@
                  (fn [] {}))))]
       k (transform-metadata connection [k v])))
 
-(s/defn categorize-rules :- {s/Keyword [Facet]}
+(s/defn categorize-rules :- {s/Keyword {s/Keyword [Facet]}}
   [rules :- [Facet]]
   (->> rules
-       (group-by (comp keyword namespace ffirst))))
+       (group-by (comp keyword namespace ffirst))
+       (map-vals (partial group-by (comp keyword name ffirst)))))
+
+(s/defn unroll-rules :- {s/Keyword [Facet]}
+  [rules :- {s/Keyword {s/Keyword [Facet]}}]
+  (println rules)
+  (for-map [metadata-first-level [:document :paragraph :word]
+            :when (get rules metadata-first-level nil)]
+      metadata-first-level
+    (for [metadata-second-level (map (comp keyword name) (conj metadata-records :word/orth-base :word/lemma :word/pos))
+          :let [facets (get-in rules [metadata-first-level metadata-second-level] nil)]
+          :when facets]
+      {(keyword (name metadata-first-level) (name metadata-second-level))
+       (into #{}
+             (flatten
+              (for [facet facets]
+                (vals facet))))})))
 
 ;; d/filter all we can before using datalog?
 
+(s/defn filter-with-rule
+  [db
+   rule :- {s/Keyword #{s/Any}}
+   e-or-v :- (s/enum :e :v)
+   datoms :- [java.lang.Object]]
+  (log/info "Filtering... " e-or-v "rule" rule "datoms" datoms)
+  (let [[rule-k rule-vs] (first rule)]
+    ;;(println "rule values:" rule-vs "rule-k" rule-k "datoms" datoms)
+    (->> datoms
+         (r/filter
+          (fn [e]
+            (let [v (rule-k (d/entity db (e-or-v e)))]
+              (if (set? v)
+                (set/intersection v rule-vs)
+                (rule-vs v))))))))
+
 (s/defn filter-with-rules
   [db
-   rules :- [Facet]
+   rules :- [{s/Keyword #{s/Any}}]
    e-or-v :- (s/enum :e :v)
-   ds]
+   datoms :- [java.lang.Object]]
   ;; FIXME this implements OR search, while we really want OR+AND+NOT search (or both?)!
-  (log/trace "Filtering... " e-or-v rules)
-  (r/fold
+  (log/info "Filtering... " e-or-v "rules" rules "datoms" datoms)
+  (r/reduce
    (r/monoid
     (fn [es rule]
-      (let [[rule-k rule-v] (first rule)]
-        (r/filter (fn [e]
-                    (let [v (rule-k (d/entity db (e-or-v e)))]
-                      (if (set? v)
-                        (contains? v rule-v)
-                        (= rule-v v))))
-                  es)))
-    (fn [] ds))
+      (filter-with-rule db rule e-or-v es))
+    (fn [] datoms))
    rules))
 
-(s/defn get-metadata-statistics :- (s/maybe {s/Keyword (s/either IndexedTree {s/Any s/Any})})
+(s/defn initial-scan :- [java.lang.Object]
+  [db
+   e-or-v
+   facet :- {s/Keyword #{s/Any}}]
+  (let [[k vs] (first facet)
+        first-v (first vs)
+        rest-v (next vs)]
+    (log/info "Performing initial scan on" "k" k "first" first-v "rest" rest-v "using" e-or-v)
+    (seq (if rest-v
+           (filter-with-rule db facet e-or-v (d/datoms db :avet k))
+           (d/datoms db :avet k first-v)))))
+
+(s/defn get-metadata-statistics :- (s/maybe {s/Keyword (s/either IndexedTreeNode {s/Any s/Any})})
   "Returns the metadata frequency distribution of given facet."
   [connection :- Connection
    facets :- [Facet]]
   (let [db (d/db connection)
-        facets (categorize-rules facets)
-        first-rule (ffirst (:document facets)) ;; :document/* only
-        rest-rules (into [] (rest (:document facets)))]
-    (log/info "Facets: " facets "\n" first-rule)
+        facets (-> facets categorize-rules unroll-rules)
+        first-rule (-> facets :document first) ;; :document/* only
+        rest-rules (-> facets :document rest (into []))]
+    (log/info {:facets facets :first-rule first-rule :rest-rules rest-rules})
     (->> first-rule ;; The first rule to search the index with. Should be a good discriminator for the final result.
-         (apply d/datoms db :avet)
+         (initial-scan db :e)
          (?>> (not-empty rest-rules) (filter-with-rules db rest-rules :e))
          (r/map (fn [{:keys [e]}] (d/entity db e)))
          (r/fold
@@ -265,9 +315,13 @@
             ;;(println "k es" k es)
             (assoc m k (transform-metadata connection [k es])))
           {})
-         ;;(into [])
-         ;;count
-         (map-vals (fn [v] (if (map? v) v (map-vals (fn [freq] {:count freq}) (frequencies v))))))))
+         (map-vals
+          (fn [v]
+            (if (map? v)
+              v
+              (apply merge (map (fn [[k freq]] {k {:name (prettify-name k) :count freq}}) (frequencies v)))
+              #_(map-vals (fn [freq] {:name v :count freq})
+                        (frequencies v))))))))
 
 (comment
   (get-metadata-statistics (-> reloaded.repl/system :db :connection) [{:document/subcorpus "OM"}]))
@@ -337,18 +391,96 @@
      (let [?q (symbol (str "?" (namespace k)))]
        [?q k v]))))
 
+(comment
+  (s/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
+    "Returns collocations of given morpheme occurring in indicated metadata."
+    [connection :- Connection
+     lemma :- s/Str
+     facets :- [Facet]]
+    (let [query (->
+                 '{:find [(clojure.core/frequencies ?clemma)]
+                   :with [?cword]
+                   :in [$ ?lemma]
+                   :where [[?word :word/lemma ?lemma]
+                           [?sentence :sentence/words ?word]
+                           [?sentence :sentence/words ?cword]
+                           [?cword :word/lemma ?clemma]
+                           [(!= ?lemma ?clemma)]
+
+                           ;;[?document :document/paragraphs ?paragraph]
+                           ;;[?paragraph :paragraph/sentences ?sentence]
+                           ]}
+
+                 ;;(?> facets (update-in [:where] conj '[?e ?a ?v]))
+                 ;;(?> facets (update-in [:in] conj '[[?e ?a ?v] ...]))
+                 (?> facets (update-in [:where] (fn [w] (into (make-dynamic-query facets) w))))
+                 #_(doto log/info))]
+      (->> (d/q query (d/db connection) lemma)
+           ffirst))))
+
 (s/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
   "Returns the frequency distribution of given facet. Specifying a lemma will return that lemma's frequency, otherwise it returns all lemma within the facet."
   [connection :- Connection
    facets :- [Facet]]
   (let [db (d/db connection)
-        facets (categorize-rules facets)
-        first-rule (ffirst (:document facets)) ;; :document/* only ;; FIXME This breaks if only :paragraph metadata is specified...
-        rest-rules (into [] (rest (:document facets)))]
-    (log/info "Facets: " facets "\n" first-rule)
+        facets-by-ns (->> facets categorize-rules unroll-rules)
+
+        transition-fn
+        (fn [f-ns datoms]
+          (log/info "Transitioning" f-ns)
+          (case f-ns
+            :document
+            (r/mapcat (fn [{:keys [e]}] (d/datoms db :eavt e :document/paragraphs)) datoms)
+
+            :paragraph
+            (->> datoms
+                 (r/mapcat (fn [{:keys [v]}] (d/datoms db :eavt v :paragraph/sentences)))
+                 (r/mapcat (fn [{:keys [v]}] (d/datoms db :eavt v :sentence/words))))
+
+            datoms))]
+    (clojure.pprint/pprint {:unrolled facets-by-ns})
+    ;;(log/info "Facets: " facets "\n" first-rule)
     ;; FIXME intelligently skip over document/paragraph traversal depending on given facets.
     ;; FIXME generate and use metadata statistics for optimal discrimination.
-    (->> first-rule ;; The first rule to search the index with. Should be a good discriminator for the final result.
+
+    #_{:document  [{s/Keyword #{(s/either s/Str s/Keyword s/Num)}}]
+       :paragraph [{s/Keyword #{(s/either s/Str s/Keyword s/Num)}}]
+       :word      [{s/Keyword #{(s/either s/Str s/Keyword s/Num)}}]}
+
+    (->>
+     (for [facet-ns [:document :paragraph :word]
+           :let [facets (facet-ns facets-by-ns)]]
+       [facet-ns (if facets facets :skip)])
+
+     (r/reduce
+      (r/monoid
+       (fn [datoms [facet-ns facets]]
+         ;;(println "<<<<<<<" datoms facet-ns facets)
+         (if (= facets :skip)
+           (do (println "Skipping....")
+               (transition-fn facet-ns datoms))
+           (let [[facet-k facet-v] (ffirst facets)
+                 e-or-v (case facet-ns :document :e :paragraph :v :word :v)
+
+                 datoms ;; Filtered datoms:
+                 (if datoms
+                   (filter-with-rules db facets e-or-v datoms)
+                   ;; First rule special case:
+                   (let [facets (next facets)
+                         datoms (initial-scan db :e {facet-k facet-v})]
+                     (if facets
+                       (filter-with-rules db facets e-or-v datoms)
+                       datoms)))]
+             (clojure.pprint/pprint {:facet-ns facet-ns :e-or-v e-or-v :datoms datoms :facet-k facet-k :facet-v facet-v})
+             ;;(clojure.pprint/pprint {:datom-1 (try (keys (d/entity db (.e (first (take 1 datoms))))) (catch Exception e))})
+             ;; Mapping transitions between metadata levels:
+             (transition-fn facet-ns datoms))))
+       (fn [] nil)))
+
+     (r/map (fn [{:keys [v]}] (:word/orth-base (d/entity db v))))
+     (into [])
+     frequencies)
+    #_(->> first-rule ;; The first rule to search the index with. Should be a good discriminator for the final result.
          (apply d/datoms db :avet)
          (?>> (not-empty rest-rules) (filter-with-rules db rest-rules :e))
          ;; Mapping from documents to words.
@@ -375,22 +507,17 @@
 ;; Search strategy for comparing a word's cooccurrence distribution between two facets:
 ;; 1.  Prepare two datastructures (String->Num maps) to hold the data for both facets. Start at the word level, iterate through all the sentences, and based on their metadata, add to relevant facet datastructure.
 
-(s/defn get-graphs :- {:data {s/Keyword {s/Str s/Num}}
-                       :stats stats/GraphStats}
+(s/defn get-graphs :- {s/Keyword
+                       {:graph        {s/Str s/Num}
+                        :unique-words {s/Str s/Num}
+                        :unique-prop  Double}
+                       :common-words [stats/MorphemeStats]
+                       :common-prop  Double}
   [connection :- Connection
    facets-map :- {s/Keyword [Facet]}]
   (let [data (for-map [[id facets] facets-map]
-                 id (get-morpheme-graph-2 connection facets))]
-    {:data data
-     :stats (apply stats/generic-diff (vals data))}))
-
-;; WARNING: Final GC required 1.141904394207189 % of runtime
-;; Evaluation count : 120 in 60 samples of 2 calls.
-;;              Execution time mean : 616.107611 ms
-;;     Execution time std-deviation : 91.223223 ms
-;;    Execution time lower quantile : 477.221374 ms ( 2.5%)
-;;    Execution time upper quantile : 752.767489 ms (97.5%)
-;;                    Overhead used : 15.687377 ns
+                 id {:graph (get-morpheme-graph-2 connection facets)})]
+    (merge-with merge data (stats/generic-diff data))))
 
 (comment
   (sm/defschema TokenStats
@@ -420,32 +547,6 @@
   [connection :- Connection
    lemma :- s/Str
    facets :- (s/maybe {s/Keyword s/Any})]
-  (let [query (->
-               '{:find [(clojure.core/frequencies ?clemma)]
-                 :with [?cword]
-                 :in [$ ?lemma]
-                 :where [[?word :word/lemma ?lemma]
-                         [?sentence :sentence/words ?word]
-                         [?sentence :sentence/words ?cword]
-                         [?cword :word/lemma ?clemma]
-                         [(!= ?lemma ?clemma)]
-
-                         ;;[?document :document/paragraphs ?paragraph]
-                         ;;[?paragraph :paragraph/sentences ?sentence]
-                         ]}
-
-               ;;(?> facets (update-in [:where] conj '[?e ?a ?v]))
-               ;;(?> facets (update-in [:in] conj '[[?e ?a ?v] ...]))
-               (?> facets (update-in [:where] (fn [w] (into (make-dynamic-query facets) w))))
-               #_(doto log/info))]
-    (->> (d/q query (d/db connection) lemma)
-         ffirst)))
-
-(s/defn get-morpheme-graph-2 :- (s/maybe {s/Str s/Num})
-  "Returns collocations of given morpheme occurring in indicated metadata."
-  [connection :- Connection
-   lemma :- s/Str
-   facets :- [Facet]]
   (let [query (->
                '{:find [(clojure.core/frequencies ?clemma)]
                  :with [?cword]

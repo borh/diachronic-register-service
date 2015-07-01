@@ -29,7 +29,7 @@
    ;; {:db/id #db/id[:db.part/db] :db/ident :document.gender/male}
    ;; {:db/id #db/id[:db.part/db] :db/ident :document.gender/mixed}
    (-> (attribute :document/author-year) type-long indexed cardinality-one (docstring "document author birth decade"))
-   (-> (attribute :document/year) type-long indexed cardinality-one (docstring "document year published"))
+   (-> (attribute :document/year)        type-long indexed cardinality-one (docstring "document year published"))
    (-> (attribute :document/audience)    type-string indexed cardinality-one (docstring "c-code audience"))
    (-> (attribute :document/media)       type-string indexed cardinality-one (docstring "c-code media"))
    (-> (attribute :document/topic)       type-string indexed cardinality-one (docstring "c-code topic"))
@@ -74,10 +74,10 @@
    ;; (-> (attribute :complex-word/pos) type-string cardinality-many)
    ;; Try to move most metadata to sentence level to reduce search time?!
    (-> (attribute :sentence/words) type-ref cardinality-many indexed component)
-   (-> (attribute :word/position) type-long cardinality-one)
-   (-> (attribute :word/lemma) type-string indexed cardinality-one)
-   (-> (attribute :word/pos) type-string cardinality-one)
-   (-> (attribute :word/orth-base) type-string cardinality-one)
+   (-> (attribute :word/position)  type-long cardinality-one)
+   (-> (attribute :word/lemma)     type-string indexed cardinality-one)
+   (-> (attribute :word/pos)       type-string indexed cardinality-one)
+   (-> (attribute :word/orth-base) type-string indexed cardinality-one)
 
    ;; TODO: another :word-static/* entity w/o position for faster lookup (perhaps similar to proposal below:)
 

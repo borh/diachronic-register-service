@@ -75,27 +75,47 @@
                  (count union)))
      0.0)))
 
+(s/defschema MorphemeStats
+  {:word   s/Str
+   s/Keyword {:count  s/Num
+              (s/optional-key :tf-idf) s/Num}})
 (s/defschema GraphStats
-  {:common PersistentHashSet
-   :a-only PersistentHashSet
-   :b-only PersistentHashSet
-   :common-prop Double
-   :a-unique-prop Double
-   :b-unique-prop Double})
+  {s/Keyword
+   {:unique-words {s/Str s/Num}
+    :unique-prop  Double}
+   :common-words [MorphemeStats]
+   :common-prop  Double})
+
+(s/defn ->morpheme-stats :- [MorphemeStats]
+  [m :- StringNumberMap]
+  (r/fold
+   (r/monoid
+    (fn [accum word-freq]
+      (let [[word freq] (first word-freq)]
+        {:word word :count freq :tf-idf (tf-idf :rsj 10000000 freq freq)}))
+    (fn []))
+   m))
 
 (s/defn generic-diff :- GraphStats
   "Returns a map of different properties that represent differences between the two graphs a and b."
-  [a :- StringNumberMap
-   b :- StringNumberMap]
-  (let [a-vocab (set (keys a))
+  [facet-map :- {s/Keyword {:graph StringNumberMap}}]
+  (let [[a-id b-id] (keys facet-map)
+        a (-> facet-map a-id :graph)
+        b (-> facet-map b-id :graph)
+        a-vocab (set (keys a))
         b-vocab (set (keys b))
         common-vocab (set/intersection a-vocab b-vocab)
         total-vocab  (set/union        a-vocab b-vocab)
         a-only-vocab (set/difference   a-vocab b-vocab)
         b-only-vocab (set/difference   b-vocab a-vocab)]
-    {:common common-vocab
-     :a-only a-only-vocab
-     :b-only b-only-vocab
-     :common-prop  (if (empty? total-vocab) 0.0 (double (/ (count common-vocab) (count total-vocab)))) ;; jaccard-similarity?
-     :a-unique-prop (if-not (empty? a-vocab) (double (/ (count a-only-vocab) (count a-vocab))))
-     :b-unique-prop (if-not (empty? b-vocab) (double (/ (count b-only-vocab) (count b-vocab))))}))
+    (println a)
+    {a-id {:unique-words (select-keys a a-only-vocab)
+           :unique-prop (if-not (empty? a-vocab) (double (/ (count a-only-vocab) (count a-vocab))))}
+     b-id {:unique-words (select-keys b b-only-vocab)
+           :unique-prop (if-not (empty? b-vocab) (double (/ (count b-only-vocab) (count b-vocab))))}
+     :common-words (sort-by :word
+                            (for [v common-vocab]
+                              {:word v
+                               a-id  {:count (get a v)}
+                               b-id  {:count (get b v)}}))
+     :common-prop  (if (empty? total-vocab) 0.0 (double (/ (count common-vocab) (count total-vocab))))}))

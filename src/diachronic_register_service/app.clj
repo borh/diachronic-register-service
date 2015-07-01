@@ -70,6 +70,11 @@
 
 (def prod-system dev-system)
 
+(if (env :debug)
+  (do (s/set-compile-fn-validation! true)
+      (set! *warn-on-reflection* true))
+  (s/set-compile-fn-validation! false))
+
 ;; # Load Database
 
 #_(defn load-data [db options]
