@@ -5,6 +5,7 @@
              :refer-macros [log  trace  debug  info  warn  error  fatal  report
                             logf tracef debugf infof warnf errorf fatalf reportf spy]]
             [plumbing.core :refer [map-vals]]
+            [clojure.walk :as walk]
 
             [re-frame.core :refer [register-handler dispatch dispatch-sync subscribe]]
             [re-frame.middleware :as middleware]
@@ -35,9 +36,9 @@
 (def opt s/optional-key)
 (s/defschema TreeNode
   {s/Keyword (s/either s/Str s/Num s/Bool s/Keyword)
-   (s/optional-key :children) {(s/either s/Keyword s/Str) (s/recursive #'TreeNode)}})
+   (opt :children) {(s/either s/Keyword s/Str) (s/recursive #'TreeNode)}})
 (s/defschema IndexedNode
-  {(s/either s/Keyword s/Str)
+  {(s/either s/Keyword s/Str s/Num)
    TreeNode})
 (s/defschema D3Tree
   (s/maybe
@@ -48,10 +49,10 @@
   {:name        s/Str
    :checked     s/Bool
    (opt :count) s/Num
-   (opt :children) {s/Str (s/recursive #'MetadataRecord)}})
+   (opt :children) {(s/either s/Str s/Keyword s/Num) (s/recursive #'MetadataRecord)}})
 (s/defschema Metadata
   {(s/enum "document" "paragraph")
-   {s/Str
+   {(s/either s/Str s/Keyword s/Num)
     (s/either
      {(s/either s/Str s/Keyword s/Num)
       MetadataRecord}
@@ -62,12 +63,19 @@
    :query-string s/Str
    :morpheme (s/maybe {s/Keyword s/Str})
    :morpheme-variants (s/maybe D3Tree)
-   :stats (s/maybe {s/Keyword s/Any})
+   :stats (s/maybe {:common-words (s/maybe [{:word s/Str
+                                             s/Keyword
+                                             {:count s/Num
+                                              (opt :tf-idf) s/Num}}])
+                    :common-prop s/Num})
    :facets (s/maybe
             {s/Keyword {:metadata         {s/Str {s/Str s/Any}}
-                        (opt :statistics) (s/maybe {s/Keyword s/Any})
+                        ;; Metadata statistics
+                        (opt :statistics) (s/maybe {(s/either s/Str s/Keyword) s/Any})
                         (opt :selection)  [{s/Keyword s/Any}]
-                        (opt :graph)      {s/Str s/Num}}})
+                        (opt :data)       {:graph {s/Str s/Num #_{s/Keyword s/Num}}
+                                           :unique-words {s/Str s/Num}
+                                           :unique-prop s/Num}}})
    :search-state (s/maybe {s/Keyword (s/enum :timeout :loading :full :query-string)})
    :metadata-template (s/maybe {s/Str {s/Str s/Any}})})
 
@@ -94,18 +102,19 @@
          {(keyword nsk k) v}))))
 
 (s/defn metadata-to-checkboxes :- Metadata
-  [metadata :- {s/Keyword s/Any}]
-  (println metadata)
+  [metadata :- (s/maybe {s/Keyword s/Any})]
+  (info metadata)
   (->> metadata
        (group-by #(namespace (first %)))
        (map-vals (fn [xs]
                    (for-map [[nsk vs] xs]
                        (name nsk)
                      (do (println nsk vs)
-                         (if (map? vs)
+                         (println "!!!!!!!!!!!!!!!!!!!!!!!!!!" (-> vs first second))
+                         (if (-> vs first second :children)
                            (with-meta vs {:type :tree})
                            (with-meta
-                             (for-map [v vs] ;; vs should be dealt with based on datatype...
+                             vs #_(for-map [v vs] ;; vs should be dealt with based on datatype...
                                  v {:name (str v) :checked false})
                              {:type :list}))))))))
 
@@ -139,7 +148,36 @@
     (-> db
         (update-in path not)
         (update-in (subvec path 0 2)
-                   (fn [facet-map] (assoc facet-map :selection (selected-facets (:metadata facet-map))))))))
+                   (fn [facet-map]
+                     (let [s-f (selected-facets (:metadata facet-map))]
+                       (dispatch [:update-metadata-statistics (nth path 1) s-f])
+                       (assoc facet-map :selection s-f)))))))
+
+(register-handler :update-metadata-cascade
+  standard-middleware
+  (fn [db [_ path]]
+    (-> db
+        (update-in path
+                   (fn [{:keys [checked] :as m}]
+                     (let [new-checked-state (not checked)]
+                       ;; Only uncheck children when new-checked-state is false
+                       (if new-checked-state
+                         (assoc m :checked new-checked-state)
+                         (let [r (walk/postwalk
+                                  (fn [x]
+                                    ;;(info "Walking: " x)
+                                    (if (= x [:checked true])
+                                      (do (info "HIT!" x)
+                                          [:checked false])
+                                      x))
+                                  m)]
+                           (info "update-metadata-cascade:" (clojure.data/diff m r))
+                           r)))))
+        (update-in (subvec path 0 2)
+                   (fn [facet-map]
+                     (let [s-f (selected-facets (:metadata facet-map))]
+                       (dispatch [:update-metadata-statistics (nth path 1) s-f])
+                       (assoc facet-map :selection s-f)))))))
 
 (register-handler :set-metadata-statistics
   standard-middleware
@@ -148,14 +186,15 @@
 
 (register-handler :update-metadata-statistics
   standard-middleware
-  (fn [db [_ id]]
-    (let [payload (-> db :facets id :selection)]
-      (comm/send! [:query/metadata-statistics payload]
-                  30000                                    ;; TODO Longer timeout is for testing.
-                  (fn [reply]
-                    (if (= :chsk/timeout reply)
-                      (warn ":query/metadata-statistics timed out")
-                      (dispatch [:set-metadata-statistics id (metadata-to-checkboxes reply)])))))
+  (fn [db [_ id payload]]
+    (info "update-metadata-statistics:" id payload)
+    #_[payload (-> db :facets id :selection)]
+    (comm/send! [:query/metadata-statistics payload]
+                30000                                    ;; TODO Longer timeout is for testing.
+                (fn [reply]
+                  (if (= :chsk/timeout reply)
+                    (warn ":query/metadata-statistics timed out")
+                    (dispatch [:set-metadata-statistics id (metadata-to-checkboxes reply)]))))
     db))
 
 (register-handler :add-facet
@@ -196,12 +235,16 @@
                 db
                 {:facets
                  (for-map [id ids]
-                     id {:graph (get-in reply [:data id])})})))
+                     id {:data {:graph (get-in reply [id :graph])
+                                :unique-words (get-in reply [id :unique-words])
+                                :unique-prop  (get-in reply [id :unique-prop])}})})))
 
 (register-handler :update-stats
   standard-middleware
-  (fn [db [_ reply]] (assoc db :stats (:stats reply))))
-
+  (s/fn [db [_ reply :- {:common-words [{s/Str {s/Keyword s/Num}}]
+                         :common-prop  s/Num
+                         s/Keyword s/Any}]]
+    (assoc-in db [:stats] {:common-words (:common-words reply) :common-prop (:common-prop reply)})))
 
 (register-handler :search-graphs
   standard-middleware

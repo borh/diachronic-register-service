@@ -2,32 +2,35 @@
   (:require [schema.core :as s :include-macros true]
             [clojure.string :as str]
             [goog.string :as gstr]
+            ;;[clojure.pprint :refer [pprint]]
 
-            [re-frame.core :refer [dispatch subscribe]]
+            [re-frame.core :refer [dispatch dispatch-sync subscribe]]
             [reagent.core :as reagent]
 
             [taoensso.timbre :as timbre
              :refer-macros [log  trace  debug  info  warn  error  fatal  report
                             logf tracef debugf infof warnf errorf fatalf reportf spy]]
 
+            [diachronic-register-app.translations :refer [ja->en]]
             [diachronic-register-app.handlers :refer [D3Tree TreeNode IndexedNode]]
             [diachronic-register-app.force :as force]))
 
-(defmulti make-selection-element (fn [coll] (:match-type (meta coll))))
+(comment
+  (defmulti make-selection-element (fn [coll] (:match-type (meta coll))))
 
-(defmethod make-selection-element :OR
-  [id nk k vs]
-  [:div.checkbox-inline
-   (for [[v v-map] vs]
-     ^{:key (str nk k (:name v-map))}
-     [:label.checkbox-inline
-      [:input
-       {:type      "checkbox"
-        :id        (str nk k (:name v-map))
-        :value     (:name v-map)
-        :checked   (:checked v-map)
-        :on-change (fn [_] (trace "Updating state:" (:checked v-map) "to" (not (:checked v-map))) (dispatch [:update-metadata [:metadata id nk k v :checked]]))}
-       (:name v-map)]])])
+  (defmethod make-selection-element :OR
+    [id nk k vs]
+    [:div.checkbox-inline
+     (for [[v v-map] vs]
+       ^{:key (str nk k (:name v-map))}
+       [:label.checkbox-inline
+        [:input
+         {:type      "checkbox"
+          :id        (str nk k (:name v-map))
+          :value     (:name v-map)
+          :checked   (:checked v-map)
+          :on-change (fn [_] (trace "Updating state:" (:checked v-map) "to" (not (:checked v-map))) (dispatch [:update-metadata [:metadata id nk k v :checked]]))}
+         (:name v-map)]])]))
 
 (comment
 
@@ -40,12 +43,12 @@
   )
 
 (defn prettify-facet-name [s]
-  (-> s
+  (-> (if (or (string? s) (keyword? s)) s (str s))
       name
       (str/replace "-" " ")
       str/capitalize))
 
-(defn make-collapsible-panel
+(defn make-collapsible-panel ;; FIXME open? not working?
   [{:keys [panel-name open?]} body]
   (let [unique-id (gensym (name panel-name))]
     (with-meta
@@ -55,10 +58,10 @@
          [:a {:data-toggle   "collapse"
               :data-parent   (str "#panel" unique-id)
               :href          (str "#collapse" unique-id)
-              :aria-expanded (if open? true false)
+              :aria-expanded (if open? false true)
               :aria-controls (str "collapse" unique-id)}
           (prettify-facet-name panel-name)]]]
-       [:div.panel-collapse.collapse;;.in <- will open on load
+       [:div.panel-collapse.collapse.in ;; <- will open on load
         {:id (str "collapse" unique-id)
          :role "tabpanel"
          :aria-labelledby (str "heading" unique-id)}
@@ -76,23 +79,25 @@
   (let [tree (get-in tree [current-node])]
     ;;(println "A: " tree)
     ^{:key (apply str path)}
-    [:div.checkbox-inline
-     [:label.checkbox-inline
-      [:input
-       {:type      "checkbox"
-        :id        (:name tree)
-        :value     (:name tree)
-        :checked   (:checked tree)
-        :on-change (fn [_]
-                     (dispatch [:update-metadata (conj (into [:facets id :metadata "document" "category"] path) :checked)])
-                     (dispatch [:update-metadata-statistics id]))}
-       (str (:name tree) " ") [:span.badge (:count tree)]
-       (for [child (:children tree)]
-         (render-tree
-          id
-          (into path [:children (first child)])
-          (first child)
-          (apply hash-map child)))]]]))
+    [:div.row
+     [:div.checkbox-inline
+      [:label.checkbox-inline
+       [:input
+        {:type      "checkbox"
+         :id        (:name tree)
+         :value     (:name tree)
+         :hidden    (zero? (:count tree))
+         :checked   (:checked tree) ;; TODO {:indeterminate true} if not all children are checked
+         :on-change (fn [_]
+                      (dispatch [:update-metadata-cascade (into [:facets id :metadata "document" "category"] path)]) ;; Need to check/uncheck all children
+                      #_(dispatch [:update-metadata-statistics id]))} ;; This breaks somehow...
+        (str (:name tree) " ") [:span.badge (:count tree)] ;; TODO translation hook
+        (for [child (:children tree)]
+          (render-tree
+           id
+           (into path [:children (first child)])
+           (first child)
+           (apply hash-map child)))]]]]))
 
 
 (defn facet-box
@@ -130,10 +135,10 @@
                          :checked   (:checked v-map)
                          :on-change (fn [_]
                                       (dispatch [:update-metadata [:facets id :metadata metadata-level metadata-name v :checked]])
-                                      (dispatch [:update-metadata-statistics id]))}
-                        (:name v-map)]])])]]))))]))))
+                                      #_(dispatch [:update-metadata-statistics id]))}
+                        (ja->en metadata-level metadata-name (:name v-map)) " " [:span.badge (:count v-map)]]])])]]))))]))))
 
-(defn search-box
+(defn search-box ;; FIXME need to separate intents when not dealing with word-based search
   "Query box."
   []
   (let [query-string (subscribe [:query-string])
@@ -141,7 +146,7 @@
     (fn []
       [:div.col-md-4.col-md-offset-4.input-group
        [:input {:class        "input form-control" :type "text"
-                :placeholder  "Input any character string ..."
+                :placeholder  "Input any character string or leave blank to query all"
                 :value        @query-string
                 :on-change    (fn [e]
                                 (let [query-string-string (.. e -target -value)]
@@ -216,7 +221,12 @@
          ^{:key (str "info" facet-id)}
          [:div
           [:p "Metadata information for " (prettify-facet-name facet-id)]
-          [:p (pr-str (:statistics facet-kvs))]])])))
+          (let [selected-vec (-> facet-kvs :selection)]
+            (for [selected selected-vec
+                  [metadata-ns metadata-v] selected
+                  :let [metadata-top (namespace metadata-ns)
+                        metadata-bottom (name metadata-ns)]]
+              [:div (str metadata-top "/" metadata-bottom ": " metadata-v " ") [:span.badge (get-in facet-kvs [:statistics metadata-top metadata-bottom metadata-v :count])]]))])])))
 
 (defn results-box
   "Renders results given query-string and metadata query."
@@ -228,9 +238,9 @@
       [:div
        (case (-> @search-state id)
          :loading [:p "Searching..."]
-         nil [:p "Please enter search query."]
-
-         :failed [:p "Search timed out. Please try again!"]
+         :timeout [:p "Search timed out. Please try again or make a more constrained query."]
+         nil      [:p "Please enter search query."]
+         :failed  [:p "Search timed out. Please try again!"]
 
          :full
          (if (not-empty (-> @facets id :metadata))
@@ -239,12 +249,12 @@
                    (for [kv (-> @facets id :selection)]
                      (let [[k v] (first kv)]
                        ^{:key (str kv)} [:span.label.label-default (str (prettify-facet-name k) ": " v)]))]]
-            (if (not-empty (-> @facets id :graph))
-              [graph-box id @query-string (-> @facets id :graph)])]   ;; TODO would making the d3 node at this level help?
+            #_(if (not-empty (-> @facets id :data :graph))
+              [graph-box id @query-string (-> @facets id :data :graph)])]   ;; TODO would making the d3 node at this level help?
            [:p "No results found."])
 
          :query-string
-         (if (not-empty (-> @facets id :graph))
+         (if (not-empty (-> @facets id :data :graph))
            [:div [:p (str "Results for " (prettify-facet-name id) " with metadata ")
                   (for [kv (-> @facets id :selection)]
                     (let [[k v] (first kv)]
@@ -252,40 +262,78 @@
             [:table.table
              [:thead [:tr [:th "Query-String"] [:th "Frequency"]]]
              [:tbody
-              (for [[k v] (-> @facets id :graph)]          ;; TODO variable table columns
+              (for [[k v] (-> @facets id :data :graph)]          ;; TODO variable table columns
                 ^{:key (str k v)}
                 [:tr [:td k] [:td v]])]]]
            [:p "No results found."]))])))
 
+(defn make-table [title headers xs]
+  [:div.col-md-4
+   [:div.panel.panel-default
+    [:div.panel-heading title]
+    [:table.table.table-condensed.table-responsive
+     [:thead (into [:tr] (mapv (fn [text] [:th text]) headers))]
+     [:tbody
+      (for [[k v] (take 50 (sort-by second > xs))]
+        ^{:key (str k v)}
+        [:tr [:td k] [:td v]])]]]])
+
+(defn make-map-table [title headers ids xs]
+  (info xs)
+  [:div.col-md-4
+   [:div.panel.panel-default
+    [:div.panel-heading title]
+    [:table.table.table-condensed.table-responsive
+     [:thead (into [:tr [:th (first headers)]] (mapv (fn [text id] [:th text " in " (prettify-facet-name id)]) (rest headers) ids))]
+     [:tbody
+      (for [{:keys [word] :as m}
+            (take 50 (sort-by
+                      (fn [x]
+                        (apply +
+                               (for [[k v] x
+                                     :let [cnt (:count v)]
+                                     :when cnt] cnt))) > xs))]
+        ^{:key (str word)}
+        [:tr (into [:td word] (mapv (fn [id] [:td (-> m id :count)]) ids))])]]]])
+
 (defn stats-box []
-  (let [stats (subscribe [:stats])]
+  (let [stats (subscribe [:stats])
+        facets (subscribe [:facets])]
     (fn []
       [:div.col-md-12 ;; TODO: do we want to visualize the 1.0 and 3.0 as a sorted line of words (order determined by some weight....)?
        (if @stats
-         (let [{:keys [common
-                       a-only
-                       b-only
-                       common-prop
-                       a-unique-prop
-                       b-unique-prop]}
-               @stats]
+         (let [{:keys [common-prop
+                       common-words]}
+               @stats
+
+               [a-id b-id] (sort (keys @facets))]
            [:div
-            [:p "Common: " "(50/" (count common) ") " (str/join ", " (take 50 common))]
-            [:p "A only: " "(50/" (count a-only) ") " (str/join ", " (take 50 a-only))]
-            [:p "B only: " "(50/" (count b-only) ") " (str/join ", " (take 50 b-only))]
+            [:div.row
+             [make-table (str "Words occurring only in " (prettify-facet-name a-id)) ["Word" "Frequency"] (-> @facets a-id :data :unique-words)]
+             [make-map-table (str "Words common to " (prettify-facet-name a-id) " and " (prettify-facet-name b-id)) ["Word" "Frequency" "Frequency"] [a-id b-id] (-> @stats :common-words)]
+             [make-table (str "Words occurring only in " (prettify-facet-name b-id)) ["Word" "Frequency"] (-> @facets b-id :data :unique-words)]]
+            ;;[:p "Common: " "(50/" (count common) ") " (str/join ", " (take 50 common))]
+            ;;[:p "A only: " "(50/" (count a-only) ") " (str/join ", " (take 50 a-only))]
+            ;;[:p "B only: " "(50/" (count b-only) ") " (str/join ", " (take 50 b-only))]
             [:p "Common proportion: " common-prop]
-            [:p "A unique proportion: " a-unique-prop]
-            [:p "B unique proportion: " b-unique-prop]])
+            [:p (prettify-facet-name a-id) " unique proportion: " (-> @facets a-id :data :unique-prop)]
+            [:p (prettify-facet-name b-id) " unique proportion: " (-> @facets b-id :data :unique-prop)]])
          [:p.text-center "Statistics = " "(waiting...)"])])))
 
 (defn stats-small-box []
-  (let [stats (subscribe [:stats])]
+  (let [stats (subscribe [:stats])
+        facets (subscribe [:facets])]
     (fn []
-      [:div
-       (gstr/format "Common: %f%, A only: %f%, B only: %f%"
-                    (or (* 100 (-> @stats :common-prop)) 0)
-                    (or (* 100 (-> @stats :a-unique-prop)) 0)
-                    (or (* 100 (-> @stats :b-unique-prop)) 0))])))
+      #_(let [xs
+            (into []
+                  (or (* 100 (-> @stats :common-prop)) 0)
+                  (flatten
+                   (for [facet @facets
+                         [facet-name facet-map] facet]
+                     [(prettify-facet-name facet-name)
+                      (or (* 100 (-> facet-map :statistics :unique-prop)) 0)])))]
+        [:div
+         (apply (fn [[c a af b bf]] (gstr/format "Common: %f%, %s only: %f%, %s only: %f%" c a af b bf)) xs)]))))
 
 (defn navbar []
   [:nav.navbar.navbar-default.navbar-fixed-top.centered
@@ -301,12 +349,12 @@
       {:href "#"}
       "Japanese Language Diachronic Register Search"]]
     [:div.collapse.navbar-collapse {:id "navbar-top-collapse"}
-     [:div.nav.navbar-nav
+     [:div.nav.navbar-nav.navbar-right
       [:ul.nav.navbar-nav
-       [:li [:a {:href "#"} "Help"]]
+       [:li [:a {:href "https://github.com/borh/diachronic-register-service"} "Help"]]
        [:li [:a {:href "#" :on-click (fn [_] (dispatch [:reset-app-state]))} "Reset"]]
-       [:li [:a {:href "#"} "Login"]]]]
-     [:span.navbar-text.navbar-right "Signed-in as Anonymous"]]]])
+       #_[:li [:a {:href "#"} "Login"]]]]
+     #_[:span.navbar-text.navbar-right "Signed-in as Anonymous"]]]])
 
 (defn footer []
   [:nav.navbar.navbar-default.navbar-fixed-bottom.centered
@@ -355,7 +403,7 @@
                 (fn [[id _]]
                   [:div {:class (str "col-md-" (int (/ 12 (count @facets))) " hoffset")} ;;.col-md-6
                    [facet-box id]])
-                @facets)))
+                (sort @facets))))
 
        ;; Facet selection information
        (when (not-empty @facets)
