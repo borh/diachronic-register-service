@@ -1,84 +1,22 @@
-diachronic-register-service
-===========================
+# diachronic-register-service
 
-Diachronic and synchronic register search for modern and contemporary Japanese corpora
+This repository contains the source code for a diachronic and synchronic register search system for modern and contemporary Japanese corpora.
+
+##  Abstract
+
+The diachronic register service system is being developed to provide a convenient and insightful way of visualizing and analysis of over a century (1874--2008) of Japanese language change. Consequently, its aim is to simplify investigations into diachronic language change as well as register variation in Japanese by providing a uniﬁed and sophisticated metadata-based search interface over several historical as well as contemporary corpora.
 
 ## Development
 
-Open a terminal and type `lein repl` to start a Clojure REPL (interactive prompt).
-
-In the REPL, type
-
-```clojure
-(go)
-(browser-repl)
-```
-
-The call to `(go)` does two things, it starts the webserver at port
-10555, and also the Figwheel server which takes care of live reloading
-ClojureScript code and CSS. Give them some time to start.
-
-Running `(browser-repl)` starts the Weasel REPL server, and drops you
-into a ClojureScript REPL. Evaluating expressions here will only work
-once you've loaded the page, so the browser can connect to Weasel.
-
-When you see the line `Successfully compiled "resources/public/app.js"
-in 21.36 seconds.`, you're ready to go. Browse to
-`http://localhost:10555` and enjoy.
-
-**Attention: It is not longer needed to run `lein figwheel`
-  separately. This is now taken care of behind the scenes**
+Development is done using [boot](https://getboot.com).
 
 ## Trying it out
 
-If all is well you now have a browser window saying 'Hello Chestnut',
-and a REPL prompt that looks like `cljs.user=>`.
+A local copy may be run, provided you have Java and the boot toolchain installed. Additionally, it is necessary to download one or more corpora and install the native NLP toolchain for Japanese. An easier way is to visit the (current) [online demo](http://chiron.lang.osaka-u.ac.jp) (may be unavailable currently).
 
-Open `resources/public/css/style.css` and change some styling of the
-H1 element. Notice how it's updated instantly in the browser.
+## Contact
 
-Open `src/cljs/diachronic-register-service/core.cljs`, and change `dom/h1` to
-`dom/h2`. As soon as you save the file, your browser is updated.
-
-In the REPL, type
-
-```
-(ns diachronic-register-service.core)
-(swap! app-state assoc :text "Interactivity FTW")
-```
-
-Notice again how the browser updates.
-
-## Deploying to Heroku
-
-This assumes you have a
-[Heroku account](https://signup.heroku.com/dc), have installed the
-[Heroku toolbelt](https://toolbelt.heroku.com/), and have done a
-`heroku login` before.
-
-``` sh
-git init
-git add -A
-git commit
-heroku create
-git push heroku master:master
-heroku open
-```
-
-## Running with Foreman
-
-Heroku uses [Foreman](http://ddollar.github.io/foreman/) to run your
-app, which uses the `Procfile` in your repository to figure out which
-server command to run. Heroku also compiles and runs your code with a
-Leiningen "production" profile, instead of "dev". To locally simulate
-what Heroku does you can do:
-
-``` sh
-lein with-profile -dev,+production uberjar && foreman start
-```
-
-Now your app is running at
-[http://localhost:5000](http://localhost:5000) in production mode.
+You may either email me directly or post issues on Github.
 
 ## License
 
