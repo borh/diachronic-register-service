@@ -12,7 +12,7 @@
                             logf tracef debugf infof warnf errorf fatalf reportf spy]]
 
             [diachronic-register-app.translations :refer [ja->en]]
-            [diachronic-register-app.handlers :refer [D3Tree TreeNode IndexedNode]]
+            [diachronic-register-app.handlers :refer [D3Tree IndexedTree]]
             [diachronic-register-app.force :as force]))
 
 (comment
@@ -73,7 +73,7 @@
   [id :- s/Keyword
    path :- (s/maybe [s/Any])
    current-node :- (s/either s/Str s/Keyword)
-   tree :- IndexedNode]
+   tree :- IndexedTree]
   ;;(println "Path: " path)
   ;;(println "B: " tree)
   (let [tree (get-in tree [current-node])]
@@ -226,7 +226,8 @@
                   [metadata-ns metadata-v] selected
                   :let [metadata-top (namespace metadata-ns)
                         metadata-bottom (name metadata-ns)]]
-              [:div (str metadata-top "/" metadata-bottom ": " metadata-v " ") [:span.badge (get-in facet-kvs [:statistics metadata-top metadata-bottom metadata-v :count])]]))])])))
+              [:div (str metadata-top "/" metadata-bottom ": " metadata-v " ")
+               [:span.badge (get-in facet-kvs [:statistics metadata-top metadata-bottom metadata-v :count])]]))])])))
 
 (defn results-box
   "Renders results given query-string and metadata query."

@@ -17,7 +17,7 @@
             [corpus-utils.kokken :as kokken]
             [corpus-utils.text :as text]
             [corpus-utils.document :refer [SentencesSchema]]
-            [d3-compat-tree.tree :as tree :refer [IndexedTreeNode]]
+            [d3-compat-tree.tree :as tree :refer [IndexedTree]]
 
             [diachronic-register-service.schemas :refer [CorpusOptions StatMap Metadata->StatMap Document Facet StringNumberMap MetadataMap]]
             [diachronic-register-service.stats :as stats])
@@ -127,7 +127,7 @@
 
 (s/defn transform-metadata :- (s/either [(s/either s/Str s/Keyword s/Num)]
                                         #{(s/either s/Str s/Keyword s/Num)}
-                                        IndexedTreeNode)
+                                        IndexedTree)
   [connection :- Connection
    [k v] :- [(s/one s/Keyword "k") s/Any]]
   (case k
@@ -194,7 +194,7 @@
 
 (s/defn get-all-metadata :- {s/Keyword (s/either #{(s/either s/Str s/Keyword s/Num)}
                                                  [(s/either s/Str s/Keyword s/Num)]
-                                                 IndexedTreeNode)}
+                                                 IndexedTree)}
   [connection :- Connection]
   (for-map [[k v]
             (->>
@@ -287,7 +287,7 @@
            (filter-with-rule db facet e-or-v (d/datoms db :avet k))
            (d/datoms db :avet k first-v)))))
 
-(s/defn get-metadata-statistics :- (s/maybe {s/Keyword (s/either IndexedTreeNode {s/Any s/Any})})
+(s/defn get-metadata-statistics :- (s/maybe {s/Keyword (s/either IndexedTree {s/Any s/Any})})
   "Returns the metadata frequency distribution of given facet."
   [connection :- Connection
    facets :- [Facet]]

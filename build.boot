@@ -16,7 +16,7 @@
 
                  [clj-mecab "0.4.1.3"]
                  [corpus-utils "0.1.6"]
-                 [d3-compat-tree "0.0.6"]
+                 [d3-compat-tree "0.0.7"]
                  [org.apache.commons/commons-compress "1.9"]
                  [org.tukaani/xz "1.5"]
                  [me.raynes/fs "1.4.6"]
@@ -45,9 +45,9 @@
                  ;;[tesser.core "1.0.0"]
                  ;;[tesser.math "1.0.0"]
 
-                 [ring/ring "1.4.0-RC1" :exclusions [ring/ring-jetty-adapter]]
-                 [ring/ring-core "1.4.0-RC1" :exclusions [org.clojure/tools.reader]]
-                 [ring/ring-devel "1.4.0-RC1"]
+                 [ring/ring "1.4.0-RC2" :exclusions [ring/ring-jetty-adapter]]
+                 [ring/ring-core "1.4.0-RC2" :exclusions [org.clojure/tools.reader]]
+                 [ring/ring-devel "1.4.0-RC2"]
                  [ring/ring-json "0.3.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]
                  [ring/ring-defaults "0.1.5"]               ; Incl. `ring-anti-forgery`, etc.
                  [commons-codec/commons-codec "1.10"]

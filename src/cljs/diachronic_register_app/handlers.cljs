@@ -34,12 +34,11 @@
            :search-state nil)))
 
 (def opt s/optional-key)
-(s/defschema TreeNode
-  {s/Keyword (s/either s/Str s/Num s/Bool s/Keyword)
-   (opt :children) {(s/either s/Keyword s/Str) (s/recursive #'TreeNode)}})
-(s/defschema IndexedNode
+(s/defschema IndexedTree
   {(s/either s/Keyword s/Str s/Num)
-   TreeNode})
+   {:name           s/Str
+    (opt :children) (s/recursive #'IndexedTree)
+    s/Keyword       (s/either s/Str s/Num s/Bool s/Keyword)}})
 (s/defschema D3Tree
   (s/maybe
     {:name           s/Str
@@ -56,28 +55,32 @@
     (s/either
      {(s/either s/Str s/Keyword s/Num)
       MetadataRecord}
-     IndexedNode
+     IndexedTree
      D3Tree)}})
 (s/defschema DB
-  {:channel-state (s/maybe (s/enum :ready))
-   :query-string s/Str
-   :morpheme (s/maybe {s/Keyword s/Str})
-   :morpheme-variants (s/maybe D3Tree)
-   :stats (s/maybe {:common-words (s/maybe [{:word s/Str
-                                             s/Keyword
-                                             {:count s/Num
-                                              (opt :tf-idf) s/Num}}])
-                    :common-prop s/Num})
-   :facets (s/maybe
-            {s/Keyword {:metadata         {s/Str {s/Str s/Any}}
-                        ;; Metadata statistics
-                        (opt :statistics) (s/maybe {(s/either s/Str s/Keyword) s/Any})
-                        (opt :selection)  [{s/Keyword s/Any}]
-                        (opt :data)       {:graph {s/Str s/Num #_{s/Keyword s/Num}}
-                                           :unique-words {s/Str s/Num}
-                                           :unique-prop s/Num}}})
-   :search-state (s/maybe {s/Keyword (s/enum :timeout :loading :full :query-string)})
-   :metadata-template (s/maybe {s/Str {s/Str s/Any}})})
+  {:channel-state     (s/maybe (s/enum :ready))
+   :query-string      s/Str
+   ;; TODO: morpheme-related should be together?
+   :morpheme          (s/maybe {s/Keyword s/Str})
+   :morpheme-variants (s/maybe D3Tree) ;; -> IndexedTreeNode
+   :stats ;; Metadata statistics common to all facets (i.e. summary data):
+   (s/maybe {:common-words (s/maybe
+                            [{:word s/Str
+                              s/Keyword
+                              {:count s/Num
+                               (opt :tf-idf) s/Num}}])
+             :common-prop  s/Num})
+   :facets
+   (s/maybe
+    {s/Keyword {:metadata         Metadata
+                ;; The following should be present after metadata is selected/search is done:
+                (opt :selection)  [{s/Keyword s/Any}]
+                (opt :statistics) (s/maybe {(s/either s/Str s/Keyword) s/Any})
+                (opt :data)       {:graph {s/Str s/Num #_{s/Keyword s/Num}}
+                                   :unique-words (s/maybe {s/Str s/Num})
+                                   :unique-prop (s/maybe s/Num)}}})
+   :search-state      (s/maybe {s/Keyword (s/enum :timeout :loading :full :query-string)})
+   :metadata-template (s/maybe Metadata)})
 
 (defn valid-schema?
   "validate the given db, writing any problems to console.error"
