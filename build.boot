@@ -21,8 +21,17 @@
                  [org.tukaani/xz "1.5"]
                  [me.raynes/fs "1.4.6"]
 
-                 ;;[com.datomic/datomic-free "0.9.5173" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
-                 [com.datomic/datomic-pro "0.9.5173" :exclusions [org.slf4j/slf4j-nop joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
+                 ;;[com.datomic/datomic-free "0.9.5198" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
+                 [com.datomic/datomic-pro "0.9.5198" :exclusions
+                  [org.slf4j/slf4j-api
+                   org.slf4j/jul-to-slf4j
+                   org.slf4j/slf4j-nop
+                   org.slf4j/log4j-over-slf4j
+                   org.slf4j/slf4j-log4j12
+                   ;;org.slf4j/jcl-over-slf4j
+                   org.jboss.logging/jboss-logging
+
+                   joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
                  [com.taoensso/encore "1.38.0"]
@@ -49,7 +58,7 @@
                  [ring/ring-core "1.4.0-RC2" :exclusions [org.clojure/tools.reader]]
                  [ring/ring-devel "1.4.0-RC2"]
                  [ring/ring-json "0.3.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]
-                 [ring/ring-defaults "0.1.5"]               ; Incl. `ring-anti-forgery`, etc.
+                 [ring/ring-defaults "0.1.5" :exclusions [javax.servlet/servlet-api]]
                  [commons-codec/commons-codec "1.10"]
                  ;; Pedestal not compatible with Sente
                  ;;[io.pedestal/pedestal.service "0.4.0" :exclusions [com.fasterxml.jackson.core/jackson-core]]
