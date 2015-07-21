@@ -9,7 +9,6 @@
                  [org.clojure/tools.nrepl "0.2.10"]
 
                  [org.clojure/clojure "1.7.0"]
-                 ;;[org.clojure/clojure "1.6.0"]
                  [org.clojure/clojurescript "0.0-3308" :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
@@ -39,7 +38,6 @@
                  [com.cognitect/transit-clj  "0.8.275"]
                  [com.cognitect/transit-cljs "0.8.220"]
                  [com.taoensso/sente "1.5.0"]
-                 ;;[enlive "1.1.5"]
 
                  [org.clojure/tools.namespace "0.2.10"]
                  [org.danielsz/system "0.1.8" :exclusions [org.clojure/tools.namespace ns-tracker]]
@@ -49,8 +47,8 @@
 
                  [aysylu/loom "0.5.4"]
                  [org.clojure/math.combinatorics "0.1.1"]
-                 [primitive-math "0.1.4"]
-                 [com.googlecode.concurrent-trees/concurrent-trees "2.4.0"]
+                 [primitive-math "0.1.4"] ;; TODO
+                 [com.googlecode.concurrent-trees/concurrent-trees "2.4.0"] ;; TODO
                  ;;[tesser.core "1.0.0"]
                  ;;[tesser.math "1.0.0"]
 
@@ -66,8 +64,6 @@
                  ;;[io.pedestal/pedestal.immutant "0.4.0" :exclusions [org.immutant/web]]
                  [compojure "1.4.0" :exclusions [org.clojure/clojure instaparse]]
                  [instaparse "1.4.1" :exclusions [org.clojure/clojure]]
-                 ;;[gate "0.0.19" :exclusions [potemkin]]
-                 ;;[bidi "1.19.0"]
                  [org.immutant/web "2.0.2"]
                  [hiccup "1.0.5"]
 
