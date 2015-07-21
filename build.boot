@@ -4,7 +4,7 @@
  :dependencies '[[adzerk/boot-cljs      "0.0-3308-0" :scope "test"]
                  [adzerk/boot-reload    "0.3.1"      :scope "test"]
                  [environ "1.0.0"]
-                 [danielsz/boot-environ "0.0.4" :scope "test"]
+                 [danielsz/boot-environ "0.0.5" :scope "test"]
 
                  [org.clojure/tools.nrepl "0.2.10"]
 
@@ -34,7 +34,7 @@
                    joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
-                 [com.taoensso/encore "1.38.0"]
+                 [com.taoensso/encore "2.1.1"]
                  [com.taoensso/timbre "4.0.2"]
                  [com.cognitect/transit-clj  "0.8.275"]
                  [com.cognitect/transit-cljs "0.8.220"]
@@ -47,16 +47,16 @@
                  [prismatic/schema "0.4.3"]
                  [prismatic/plumbing "0.4.4"]
 
-                 [aysylu/loom "0.5.0"]
+                 [aysylu/loom "0.5.4"]
                  [org.clojure/math.combinatorics "0.1.1"]
                  [primitive-math "0.1.4"]
                  [com.googlecode.concurrent-trees/concurrent-trees "2.4.0"]
                  ;;[tesser.core "1.0.0"]
                  ;;[tesser.math "1.0.0"]
 
-                 [ring/ring "1.4.0-RC2" :exclusions [ring/ring-jetty-adapter]]
-                 [ring/ring-core "1.4.0-RC2" :exclusions [org.clojure/tools.reader]]
-                 [ring/ring-devel "1.4.0-RC2"]
+                 [ring/ring "1.4.0" :exclusions [ring/ring-jetty-adapter]]
+                 [ring/ring-core "1.4.0" :exclusions [org.clojure/tools.reader]]
+                 [ring/ring-devel "1.4.0"]
                  [ring/ring-json "0.3.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]
                  [ring/ring-defaults "0.1.5" :exclusions [javax.servlet/servlet-api]]
                  [commons-codec/commons-codec "1.10"]
@@ -64,7 +64,7 @@
                  ;;[io.pedestal/pedestal.service "0.4.0" :exclusions [com.fasterxml.jackson.core/jackson-core]]
                  ;;[io.pedestal/pedestal.service-tools "0.4.0"]
                  ;;[io.pedestal/pedestal.immutant "0.4.0" :exclusions [org.immutant/web]]
-                 [compojure "1.3.4" :exclusions [org.clojure/clojure instaparse]]
+                 [compojure "1.4.0" :exclusions [org.clojure/clojure instaparse]]
                  [instaparse "1.4.1" :exclusions [org.clojure/clojure]]
                  ;;[gate "0.0.19" :exclusions [potemkin]]
                  ;;[bidi "1.19.0"]
