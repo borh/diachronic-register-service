@@ -33,7 +33,7 @@
                    joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
-                 [com.taoensso/encore "2.1.1"]
+                 [com.taoensso/encore "2.1.2"]
                  [com.taoensso/timbre "4.0.2"]
                  [com.cognitect/transit-clj  "0.8.275"]
                  [com.cognitect/transit-cljs "0.8.220"]
@@ -150,7 +150,7 @@
   []
   (comp
    (environ :env config)
-   (cljs)
+   (cljs :source-map true)
    (run :main-namespace "diachronic-register-service.core" :arguments [#'dev-system])
    (wait)))
 
