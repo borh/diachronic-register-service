@@ -9,7 +9,7 @@
                  [org.clojure/tools.nrepl "0.2.10"]
 
                  [org.clojure/clojure "1.7.0"]
-                 [org.clojure/clojurescript "0.0-3308" :exclusions [org.clojure/tools.reader]]
+                 [org.clojure/clojurescript "1.7.107" :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
 
@@ -33,11 +33,11 @@
                    joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
-                 [com.taoensso/encore "2.1.2"]
-                 [com.taoensso/timbre "4.0.2"]
-                 [com.cognitect/transit-clj  "0.8.275"]
+                 [com.taoensso/encore "2.4.2"]
+                 [com.taoensso/timbre "4.1.0"]
+                 [com.cognitect/transit-clj  "0.8.281"]
                  [com.cognitect/transit-cljs "0.8.220"]
-                 [com.taoensso/sente "1.5.0"]
+                 [com.taoensso/sente "1.7.0-alpha2"]
 
                  [org.clojure/tools.namespace "0.2.10"]
                  [org.danielsz/system "0.1.8" :exclusions [org.clojure/tools.namespace ns-tracker]]
@@ -55,7 +55,7 @@
                  [ring/ring "1.4.0" :exclusions [ring/ring-jetty-adapter]]
                  [ring/ring-core "1.4.0" :exclusions [org.clojure/tools.reader]]
                  [ring/ring-devel "1.4.0"]
-                 [ring/ring-json "0.3.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]
+                 [ring/ring-json "0.4.0" :exclusions [com.fasterxml.jackson.core/jackson-core]]
                  [ring/ring-defaults "0.1.5" :exclusions [javax.servlet/servlet-api]]
                  [commons-codec/commons-codec "1.10"]
                  ;; Pedestal not compatible with Sente
