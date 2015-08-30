@@ -1,22 +1,22 @@
 (set-env!
  :source-paths   #{"src" "src/cljs"}
  :resource-paths #{"resources"}
- :dependencies '[[adzerk/boot-cljs      "0.0-3308-0" :scope "test"]
-                 [adzerk/boot-reload    "0.3.1"      :scope "test"]
+ :dependencies '[[adzerk/boot-cljs      "1.7.48-3" :scope "test"]
+                 [adzerk/boot-reload    "0.3.2"    :scope "test"]
                  [environ "1.0.0"]
                  [danielsz/boot-environ "0.0.5" :scope "test"]
 
                  [org.clojure/tools.nrepl "0.2.10"]
 
                  [org.clojure/clojure "1.7.0"]
-                 [org.clojure/clojurescript "1.7.107" :exclusions [org.clojure/tools.reader]]
+                 [org.clojure/clojurescript "1.7.122" :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
 
-                 [clj-mecab "0.4.1.3"]
-                 [corpus-utils "0.1.6"]
-                 [d3-compat-tree "0.0.7"]
-                 [org.apache.commons/commons-compress "1.9"]
+                 [clj-mecab "0.4.1.4"]
+                 [corpus-utils "0.1.7"]
+                 [d3-compat-tree "0.0.8"]
+                 [org.apache.commons/commons-compress "1.10"]
                  [org.tukaani/xz "1.5"]
                  [me.raynes/fs "1.4.6"]
 
@@ -33,16 +33,16 @@
                    joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
-                 [com.taoensso/encore "2.4.2"]
-                 [com.taoensso/timbre "4.1.0"]
+                 [com.taoensso/encore "2.5.0"]
+                 [com.taoensso/timbre "4.1.1"]
                  [com.cognitect/transit-clj  "0.8.281"]
-                 [com.cognitect/transit-cljs "0.8.220"]
-                 [com.taoensso/sente "1.7.0-alpha2"]
+                 [com.cognitect/transit-cljs "0.8.225"]
+                 [com.taoensso/sente "1.7.0-alpha5"]
 
-                 [org.clojure/tools.namespace "0.2.10"]
-                 [org.danielsz/system "0.1.8" :exclusions [org.clojure/tools.namespace ns-tracker]]
+                 [org.clojure/tools.namespace "0.3.0-alpha1"]
+                 [org.danielsz/system "0.1.9" :exclusions [org.clojure/tools.namespace ns-tracker]]
                  [com.stuartsierra/component "0.2.3"]
-                 [prismatic/schema "0.4.3"]
+                 [prismatic/schema "1.0.0-alpha1"]
                  [prismatic/plumbing "0.4.4"]
 
                  [aysylu/loom "0.5.4"]
