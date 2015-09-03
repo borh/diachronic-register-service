@@ -1,2 +1,2 @@
 {:require [diachronic-register-app.core]
- :compiler-options {:asset-path "out"}}
+ :compiler-options {:asset-path "main.out"}}
