@@ -268,6 +268,9 @@
                 [:tr [:td k] [:td v]])]]]
            [:p "No results found."]))])))
 
+;; FIXME: Add popover functionality on words that shows relevant information.
+;; <button type="button" class="btn btn-default" data-container="body" data-toggle="popover" data-placement="top" data-content="Vivamus sagittis lacus vel augue laoreet rutrum faucibus.">Top</button>
+
 (defn make-table [title headers xs]
   [:div.col-md-4
    [:div.panel.panel-default
