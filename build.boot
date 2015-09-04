@@ -14,7 +14,7 @@
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
 
                  [clj-mecab "0.4.1.4"]
-                 [corpus-utils "0.1.7"]
+                 [corpus-utils "0.1.8"]
                  [d3-compat-tree "0.0.8"]
                  [org.apache.commons/commons-compress "1.10"]
                  [org.tukaani/xz "1.5"]
@@ -42,7 +42,7 @@
                  [org.clojure/tools.namespace "0.3.0-alpha1"]
                  [org.danielsz/system "0.1.9" :exclusions [org.clojure/tools.namespace ns-tracker]]
                  [com.stuartsierra/component "0.2.3"]
-                 [prismatic/schema "1.0.0-alpha1"]
+                 [prismatic/schema "1.0.0"]
                  [prismatic/plumbing "0.4.4"]
 
                  [aysylu/loom "0.5.4"]
@@ -64,7 +64,7 @@
                  ;;[io.pedestal/pedestal.immutant "0.4.0" :exclusions [org.immutant/web]]
                  [compojure "1.4.0" :exclusions [org.clojure/clojure instaparse]]
                  [instaparse "1.4.1" :exclusions [org.clojure/clojure]]
-                 [org.immutant/web "2.0.2"]
+                 [org.immutant/web "2.1.0"]
                  [hiccup "1.0.5"]
 
                  ;; ClojureScript-specific
