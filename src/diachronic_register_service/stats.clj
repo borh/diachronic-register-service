@@ -46,15 +46,15 @@
   2. compute the relative frequency of A in each part of X; i.e. P(a|X)
   3. compute the absolute pairwise differences between the sizes and the relative frequencies, sum them, and divide the sum by two.
   DP is close to 0 when A is distributed evenly, and close to 1 when A is distributed unevenly/clumpily."
-  [xs :- [{:document/length Long :tf Long}]]
+  [ms :- [{:document/length Long :tf Long}]]
   (let [total-size (r/fold
                     (r/monoid
                      (fn [a x] (+ a (:document/length x)))
                      (fn [] 0))
-                    xs)
-        total-frequency (reduce clojure.core/+ (map :tf xs))
-        relative-sizes (map #(/ % total-size) (map :document/length xs))
-        relative-frequencies (map (fn [r-size tf] (/ tf total-frequency)) relative-sizes #_FIXME (map :tf xs))]
+                    ms)
+        total-frequency (reduce clojure.core/+ (map :tf ms))
+        relative-sizes (map #(/ % total-size) (map :document/length ms))
+        relative-frequencies (map (fn [r-size tf] (/ tf total-frequency)) relative-sizes #_FIXME (map :tf ms))]
     (/ (+ (pairwise-difference relative-sizes)
           (pairwise-difference relative-frequencies))
        2.0)))

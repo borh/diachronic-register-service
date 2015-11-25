@@ -199,8 +199,7 @@
   (for-map [[k v]
             (->>
              (d/query
-              {:query '[:find ;;?attr-name ?attr-value
-                        ?attr-name ?attr-value
+              {:query '[:find ?attr-name ?attr-value
                         :in $ [?chosen-attr ...]
                         :where
                         [?ref ?chosen-attr ?attr-value]

@@ -146,7 +146,7 @@
     (fn []
       [:div.col-md-4.col-md-offset-4.input-group
        [:input {:class        "input form-control" :type "text"
-                :placeholder  "Input any character string or leave blank to query all"
+                :placeholder  "Input word or leave blank to query all"
                 :value        @query-string
                 :on-change    (fn [e]
                                 (let [query-string-string (.. e -target -value)]
