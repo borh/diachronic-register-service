@@ -1,27 +1,27 @@
 (set-env!
  :source-paths   #{"src" "src/cljs"}
  :resource-paths #{"resources"}
- :dependencies '[[adzerk/boot-cljs      "1.7.48-3" :scope "test"]
-                 [adzerk/boot-reload    "0.3.2"    :scope "test"]
-                 [environ "1.0.0"]
+ :dependencies '[[adzerk/boot-cljs      "1.7.170-3" :scope "test"]
+                 [adzerk/boot-reload    "0.4.2"    :scope "test"]
+                 [environ "1.0.1"]
                  [danielsz/boot-environ "0.0.5" :scope "test"]
 
-                 [org.clojure/tools.nrepl "0.2.10"]
+                 [org.clojure/tools.nrepl "0.2.12"]
 
-                 [org.clojure/clojure "1.7.0"]
-                 [org.clojure/clojurescript "1.7.122" :exclusions [org.clojure/tools.reader]]
+                 [org.clojure/clojure "1.8.0-RC2"]
+                 [org.clojure/clojurescript "1.7.170" :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
-                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [org.clojure/core.async "0.2.374"]
 
-                 [clj-mecab "0.4.1.4"]
-                 [corpus-utils "0.1.8"]
-                 [d3-compat-tree "0.0.8"]
+                 [clj-mecab "0.4.5"]
+                 [corpus-utils "0.1.10"]
+                 [d3-compat-tree "0.0.9"]
                  [org.apache.commons/commons-compress "1.10"]
                  [org.tukaani/xz "1.5"]
                  [me.raynes/fs "1.4.6"]
 
-                 ;;[com.datomic/datomic-free "0.9.5198" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations org.jboss.logging/jboss-logging]]
-                 [com.datomic/datomic-pro "0.9.5198" :exclusions
+                 ;;[com.datomic/datomic-free "0.9.5302" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core org.jboss.logging/jboss-logging]]
+                 [com.datomic/datomic-pro "0.9.5302" :exclusions
                   [org.slf4j/slf4j-api
                    org.slf4j/jul-to-slf4j
                    org.slf4j/slf4j-nop
@@ -30,24 +30,26 @@
                    ;;org.slf4j/jcl-over-slf4j
                    org.jboss.logging/jboss-logging
 
-                   joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core com.fasterxml.jackson.core/jackson-databind com.fasterxml.jackson.core/jackson-annotations]]
+                   joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
 
-                 [com.taoensso/encore "2.5.0"]
-                 [com.taoensso/timbre "4.1.1"]
-                 [com.cognitect/transit-clj  "0.8.281"]
-                 [com.cognitect/transit-cljs "0.8.225"]
-                 [com.taoensso/sente "1.7.0-alpha5"]
+                 [com.taoensso/encore "2.26.1" :exclusions [org.clojure/tools.reader]]
+                 [com.taoensso/timbre "4.1.4"]
+                 [com.cognitect/transit-clj  "0.8.285"]
+                 [com.cognitect/transit-cljs "0.8.232"]
+                 [com.taoensso/sente "1.7.0-RC1"]
 
-                 [org.clojure/tools.namespace "0.3.0-alpha1"]
-                 [org.danielsz/system "0.1.9" :exclusions [org.clojure/tools.namespace ns-tracker]]
-                 [com.stuartsierra/component "0.2.3"]
-                 [prismatic/schema "1.0.0"]
-                 [prismatic/plumbing "0.4.4"]
+                 [org.clojure/tools.reader "1.0.0-alpha1"]
+                 [org.clojure/tools.namespace "0.3.0-alpha2"]
+                 [org.danielsz/system "0.2.0" :exclusions [org.clojure/tools.namespace ns-tracker]]
+                 [com.stuartsierra/component "0.3.0"]
+                 [prismatic/schema "1.0.3"]
+                 [prismatic/plumbing "0.5.2"]
 
                  [aysylu/loom "0.5.4"]
                  [org.clojure/math.combinatorics "0.1.1"]
                  [primitive-math "0.1.4"] ;; TODO
+                 [clj-radix "0.1.0"]
                  [com.googlecode.concurrent-trees/concurrent-trees "2.4.0"] ;; TODO
                  ;;[tesser.core "1.0.0"]
                  ;;[tesser.math "1.0.0"]
@@ -64,14 +66,14 @@
                  ;;[io.pedestal/pedestal.immutant "0.4.0" :exclusions [org.immutant/web]]
                  [compojure "1.4.0" :exclusions [org.clojure/clojure instaparse]]
                  [instaparse "1.4.1" :exclusions [org.clojure/clojure]]
-                 [org.immutant/web "2.1.0"]
+                 [org.immutant/web "2.1.1"]
                  [hiccup "1.0.5"]
 
                  ;; ClojureScript-specific
                  ;;[datascript "0.11.5"] ;; TODO
-                 [re-frame "0.4.1"]
+                 [re-frame "0.5.0"]
                  ;;[com.facebook/react "0.12.2.4"]
-                 [cljsjs/d3 "3.5.5-3"]])
+                 [cljsjs/d3 "3.5.7-0"]])
 
 (set-env! :repositories #(conj % ["my.datomic.com" "https://my.datomic.com/repo"]))
 
@@ -96,7 +98,7 @@
 (task-options! repl {:init-ns 'diachronic-register-service.core})
 
 (def config
-  {:http-port 3000
+  {:http-port 4000
 
    :datomic {:host #_nil "localhost"
              :port #_nil 4334
