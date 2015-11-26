@@ -13,7 +13,7 @@
                  [org.clojure/core.match "0.3.0-alpha4" :exclusions [org.clojure/tools.analyzer.jvm]] ;; Exclusion must be present for sente to compile.
                  [org.clojure/core.async "0.2.374"]
 
-                 [clj-mecab "0.4.5"]
+                 [clj-mecab "0.4.6"]
                  [corpus-utils "0.1.10"]
                  [d3-compat-tree "0.0.9"]
                  [org.apache.commons/commons-compress "1.10"]
@@ -21,7 +21,7 @@
                  [me.raynes/fs "1.4.6"]
 
                  ;;[com.datomic/datomic-free "0.9.5302" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core org.jboss.logging/jboss-logging]]
-                 [com.datomic/datomic-pro "0.9.5302" :exclusions
+                 [com.datomic/datomic-pro "0.9.5327" :exclusions
                   [org.slf4j/slf4j-api
                    org.slf4j/jul-to-slf4j
                    org.slf4j/slf4j-nop
