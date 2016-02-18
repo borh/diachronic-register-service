@@ -151,7 +151,8 @@
                 :on-change    (fn [e]
                                 (let [query-string-string (.. e -target -value)]
                                   (dispatch [:update-query-string query-string-string])
-                                  (dispatch [:get-morpheme-variants query-string-string])))
+                                  (dispatch [:get-morpheme-variants query-string-string])
+                                  (dispatch [:get-morpheme-sentences query-string-string])))
                 :on-key-press (fn [e]
                                 (when (== (.-keyCode e) 13)
                                   (let [query-string-string (.. e -target -value)] ;; FIXME do we need to get query-string here again? -> subscription value should be enough
@@ -179,7 +180,10 @@
   [id d3-tree]
   (reagent/create-class {:display-name (str "tree-box" (name id))
                          :reagent-render (tree-box-render id)
-                         :component-did-mount (tree-box-did-mount id d3-tree)}))
+                         :component-did-mount (tree-box-did-mount id d3-tree)
+                         :component-did-update (fn [this]
+                                                 (let [[_ data] (reagent/argv this)]
+                                                   (tree-box-did-mount id d3-tree)))}))
 
 (defn morpheme-variants-box []
   (let [morpheme-variants (subscribe [:morpheme-variants])]
@@ -187,12 +191,54 @@
       (if (pos? (:count @morpheme-variants))
         [:div.row [tree-box "query" @morpheme-variants]]))))
 
+(defn regex-modifiers
+  "Returns the modifiers of a regex, concatenated as a string."
+  [re]
+  (str (if (.-multiline re) "m")
+       (if (.-ignoreCase re) "i")))
+(s/defn re-pos;; :- [[s/Num s/Str]]
+  "Returns a vector of vectors, each subvector containing in order:
+   the position of the match, the matched string, and any groups
+   extracted from the match."
+  [re :- js/RegExp s :- s/Str]
+  (let [re (js/RegExp. (.-source re) (str "g" (regex-modifiers re)))]
+    (loop [res []]
+      (if-let [m (.exec re s)]
+        (recur (conj res (vec (cons (.-index m) m))))
+        res))))
 (defn morpheme-sentences-box []
-  (let [morpheme (subscribe [:morpheme])]
+  (let [sentences (subscribe [:morpheme-sentences])
+        query-string (subscribe [:query-string])]
     (fn []
-      (when morpheme
-        [:div (for [sentence (:sentences morpheme)]
-                [:p sentence])]))))
+      (if @sentences
+        (let [q @query-string]
+          [:div
+           [:ol
+            (for [[n sentence] (zipmap (range) @sentences)]
+              ;; FIXME http://stackoverflow.com/questions/18735665/how-can-i-get-the-positions-of-regex-matches-in-clojurescript
+              (with-meta
+                (into [:li]
+                      (loop [matched-indexes (map first (re-pos (re-pattern q) sentence))
+                             current-index 0
+                             html []]
+                        ;;(println matched-indexes current-index html)
+                        (if (seq matched-indexes)
+                          (let [matched-index (first matched-indexes)
+                                sentence-part (subs sentence current-index matched-index)]
+                            (recur (next matched-indexes)
+                                   (+ matched-index (count q))
+                                   (if (not-empty sentence-part)
+                                     (conj html sentence-part [:b.text-success q])
+                                     (conj html [:b.text-success q]))))
+                          (if (<= current-index (count sentence))
+                            (conj html (subs sentence current-index))
+                            html))))
+                #_(if (= sentence q)
+                      [:li [:b.text-success q]]
+                      (into [:li]
+                            (interpose [:b.text-success q]
+                                       (clojure.string/split sentence (re-pattern q)))))
+                {:key (str "sentence" n)}))]])))))
 
 ;; # Network component
 (defn graph-box-render [id]
@@ -397,7 +443,7 @@
           [:p "Loading search-box"]
           [search-box])]
        [:div.row.voffset [morpheme-variants-box]]
-       [:div.row.voffset [morpheme-sentences-box]]
+       [:div.row [morpheme-sentences-box]]
 
        ;; Facet
        (if-not (and @app-state-ready? @sente-connected? (not-empty @facets))

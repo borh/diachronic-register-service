@@ -20,6 +20,8 @@
 
 (register-sub :morpheme-variants (fn [db] (reaction (:morpheme-variants @db))))
 
+(register-sub :morpheme-sentences (fn [db] (reaction (:morpheme-sentences @db))))
+
 (register-sub :graph (fn [db] (reaction (:graph @db))))
 
 (register-sub :stats (fn [db] (reaction (:stats @db))))

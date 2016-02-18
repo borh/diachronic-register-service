@@ -33,6 +33,7 @@
            ;;:facets nil ;; FIXME should rather reset
            :search-state nil)))
 
+
 (def opt s/optional-key)
 (s/defschema IndexedTree
   {(s/either s/Keyword s/Str s/Num)
@@ -89,7 +90,7 @@
     (if (some? res)
       (.error js/console (str "Schema problem: " res)))))
 
-(def standard-middleware [(when ^boolean goog.DEBUG middleware/log-ex)
+(def standard-middleware [#_(when ^boolean goog.DEBUG middleware/log-ex)
                           (when ^boolean goog.DEBUG middleware/debug)
                           (when ^boolean goog.DEBUG (middleware/after valid-schema?))])
 
@@ -280,6 +281,10 @@
   standard-middleware
   (fn [db [_ morpheme]] (assoc db :morpheme morpheme)))
 
+(register-handler :set-morpheme-sentences
+  standard-middleware
+  (fn [db [_ sentences]] (assoc db :morpheme-sentences sentences)))
+
 (register-handler :get-morpheme-variants
   standard-middleware
   (fn [db [_ query-string]]
@@ -289,4 +294,16 @@
                   (if (keyword? reply)
                     (error "Updating morpheme variants failed" reply)
                     (dispatch [:set-morpheme-variants reply]))))
+    db))
+
+(register-handler :get-morpheme-sentences
+  standard-middleware
+  (fn [db [_ query-string]]
+    (comm/send! [:query/morpheme-sentences query-string]
+                50000
+                (fn [reply]
+                  (println "Getting sentences for" query-string reply)
+                  (if (keyword? reply)
+                    (error "Updating morpheme sentences failed" reply)
+                    (dispatch [:set-morpheme-sentences reply]))))
     db))
