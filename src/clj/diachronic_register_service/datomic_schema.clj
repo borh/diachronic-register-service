@@ -84,3 +84,7 @@
    ;; Need: a way of getting a sequence of morphemes/sentences/paragraphs with tag information.
    ;;(-> (attribute :lemma/stats))
    ])
+
+(comment
+  (require '[datomic-schema-grapher.core :refer [graph-datomic]])
+  (graph-datomic "datomic:dev://localhost:4334/db" :save-as "db-schema-2016-01-10.dot"))

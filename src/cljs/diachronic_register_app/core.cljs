@@ -24,7 +24,6 @@
    :a-unique-prop s/Num
    :b-unique-prop s/Num})
 
-
 (comment ;; TODO
   (defprotocol SwitchBox
     (add-constraint [a])
@@ -60,3 +59,7 @@
 
 (s/set-fn-validation! ^boolean goog.DEBUG)
 (reagent/render [views/app] (.getElementById js/document "app"))
+
+(comment
+  (adzerk.boot-cljs-repl/repl-env) ;; For debug...
+  (adzerk.boot-cljs-repl/start-repl))

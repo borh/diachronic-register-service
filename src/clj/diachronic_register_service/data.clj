@@ -15,12 +15,14 @@
             [clj-mecab.parse :as parse]
             [corpus-utils.bccwj :as bccwj]
             [corpus-utils.kokken :as kokken]
+            [corpus-utils.wikipedia :as wikipedia]
             [corpus-utils.text :as text]
             [corpus-utils.document :refer [SentencesSchema]]
             [d3-compat-tree.tree :as tree :refer [IndexedTree]]
 
             [diachronic-register-service.schemas :refer [CorpusOptions StatMap Metadata->StatMap Document Facet StringNumberMap MetadataMap]]
-            [diachronic-register-service.stats :as stats])
+            [diachronic-register-service.stats :as stats]
+            [clojure.java.io :as io])
   (:import [clojure.lang PersistentHashSet]
            [datomic.peer Connection]))
 
@@ -81,9 +83,9 @@
    options :- CorpusOptions]
   (log/info ";; Loading Taiyo corpus" connection options)
   (doseq [{:keys [metadata paragraphs]}
-          (take 100 (kokken/document-seq (:corpus-dir options)))]
+          (take 50 (kokken/document-seq (:corpus-dir options)))]
     (log/info metadata (count paragraphs))
-    @(d/transact-async connection ;; FIXME is this the right transaction granularity? try 1000
+    @(d/transact-async connection
                        (document-to-datoms paragraphs metadata options :unidic-MLJ))))
 
 (s/defn load-bccwj-data
@@ -91,14 +93,25 @@
    options :- CorpusOptions]
   (log/info ";; Loading BCCWJ corpus" connection options)
   (doseq [{:keys [metadata paragraphs]} ;; FIXME make non-BCCWJ specific
-          (take 100 (bccwj/document-seq (:metadata-dir options) (:corpus-dir options)))]
+          (take 50 (bccwj/document-seq (:metadata-dir options) (:corpus-dir options)))]
     (log/info metadata (count paragraphs))
-    @(d/transact-async connection ;; FIXME is this the right transaction granularity?
+    @(d/transact-async connection
+                       (document-to-datoms paragraphs (update-in metadata [:category] #(->> % next (into []))) options :unidic))))
+
+(s/defn load-wikipedia-data
+  [connection :- Connection
+   options :- CorpusOptions]
+  (log/info ";; Loading Wikipedia corpus" connection options)
+  (doseq [{:keys [metadata paragraphs]}
+          (take 50 (wikipedia/document-seq (:corpus-file options)))]
+    (log/info metadata (count paragraphs))
+    @(d/transact-async connection
                        (document-to-datoms paragraphs (update-in metadata [:category] #(->> % next (into []))) options :unidic))))
 
 (s/defn load-data
   [connection :- Connection
    options :- {s/Keyword CorpusOptions}]
+  (load-wikipedia-data connection (-> options :wikipedia))
   (load-taiyo-data connection (-> options :taiyo))
   (load-bccwj-data connection (-> options :bccwj)))
 
@@ -669,10 +682,59 @@
         (d/db connection)
         orth-base)
    (mapcat identity)
+   (take limit)
    (into #{})))
 
 (comment
   (time (s/with-fn-validation (get-morpheme-sentences (-> reloaded.repl/system :db :connection) "こと" 5))))
+
+(s/defn pos-tagged-sentences :- [s/Str]
+  [paragraphs :- [{:paragraph/sentences
+                   [{:sentence/words
+                     [{:word/position s/Num
+                       :word/lemma s/Str
+                       :word/pos s/Str}]}]}]]
+  (for [sentences (map :paragraph/sentences paragraphs)
+        words (sort-by :position (map :sentence/words sentences))]
+    (->> words
+         (map (fn [{:keys [word/lemma word/pos]}]
+                (str lemma "/" pos)))
+         (str/join " "))))
+
+(s/defn get-metadata-seq :- [{:document/basename s/Str :document/paragraphs [s/Str]}]
+  "Given a metadata facet, returns a sequence of [[metadata sentence]].
+
+  Sentences are whitespace-delimited morphemes."
+  [connection :- Connection
+   facet :- (s/maybe {:document/corpus s/Str})]
+  (sequence
+   (comp
+    (map first)
+    (map (fn [d] (update d :document/paragraphs pos-tagged-sentences))))
+   (d/q '{:find [(pull ?document
+                       [:document/corpus
+                        :document/title
+                        :document/year
+                        :document/basename
+                        {:document/category [:category/name {:category/child ...}]}
+                        {:document/paragraphs
+                         [{:paragraph/sentences
+                           [{:sentence/words
+                             [:word/position :word/lemma :word/pos]}]}]}])]
+          :in [$ ?given-facet]
+          :where [[?document :document/corpus ?given-facet]]}
+        (d/db connection)
+        (:document/corpus facet))))
+
+(defn export-corpus [conn facet filename]
+  (with-open [f (io/writer filename)]
+    (doseq [doc (get-metadata-seq conn facet)]
+      (.write f (format "%s\t%s\n"
+                        (:document/basename doc)
+                        (str/join " " (:document/paragraphs doc)))))))
+
+(comment
+  (quick-bench (dorun (s/with-fn-validation (get-metadata-seq (-> reloaded.repl/system :db :connection) {:document/corpus "Wikipedia"} 1000)))))
 
 (comment
   (clj-mecab.parse/with-dictionary-string :unidic (clj-mecab.parse/parse-sentence "今日は。"))

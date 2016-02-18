@@ -57,6 +57,15 @@
           {:root-name ?data}))
      (comp println pr-str))))
 
+(defmethod event-msg-handler :query/morpheme-sentences
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (?reply-fn
+   (doto
+       (if ?data
+         (with-timeout 10000
+           (data/get-morpheme-sentences (-> system :db :connection) ?data 10)))
+     (comp println pr-str))))
+
 (comment
   (defmethod event-msg-handler :query/lemma
     [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]

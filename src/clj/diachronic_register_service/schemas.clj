@@ -13,7 +13,8 @@
 
 (s/defschema CorpusOptions
   {(opt :metadata-dir) s/Str
-   :corpus-dir s/Str
+   (opt :corpus-file) s/Str
+   (opt :corpus-dir) s/Str
    :metadata-keys s/Any})
 
 (s/defschema StringNumberMap
