@@ -16,7 +16,7 @@
                  [weasel "0.7.0" :scope "test" :exclusions [org.clojure/clojurescript org.clojure/clojure]]
                  [org.clojure/tools.nrepl "0.2.12"]
                  [devcards "0.2.1-6"]
-                 [pandeiro/boot-http "0.7.2"]
+                 [pandeiro/boot-http "0.7.3"]
 
                  [clj-mecab "0.4.6"]
                  [corpus-utils "0.2.3"]
@@ -26,20 +26,21 @@
                  [me.raynes/fs "1.4.6"]
 
                  ;;[com.datomic/datomic-free "0.9.5302" :exclusions [joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core org.jboss.logging/jboss-logging]]
-                 [com.datomic/datomic-pro "0.9.5327" :exclusions
-                  [org.slf4j/slf4j-api
+                 [com.datomic/datomic-pro "0.9.5350" :exclusions
+                  [org.slf4j/slf4j-nop
+                   org.slf4j/slf4j-api
                    org.slf4j/jul-to-slf4j
-                   org.slf4j/slf4j-nop
                    org.slf4j/log4j-over-slf4j
                    org.slf4j/slf4j-log4j12
-                   ;;org.slf4j/jcl-over-slf4j
+                   org.slf4j/jcl-over-slf4j
                    org.jboss.logging/jboss-logging
 
                    joda-time org.clojure/tools.cli com.fasterxml.jackson.core/jackson-core]]
                  ;;[tailrecursion/boot-datomic "0.1.0-SNAPSHOT" :scope "test"]
+                 [ch.qos.logback/logback-classic "1.1.5"]
                  [datomic-schema-grapher "0.0.1"]
 
-                 [com.taoensso/encore "2.36.0"]
+                 [com.taoensso/encore "2.36.1"]
                  [com.taoensso/timbre "4.3.0-RC1"]
                  [com.cognitect/transit-clj  "0.8.285"]
                  [com.cognitect/transit-cljs "0.8.237"]
@@ -54,7 +55,7 @@
 
                  [aysylu/loom "0.5.4"]
                  [org.clojure/math.combinatorics "0.1.1"]
-                 [primitive-math "0.1.4"] ;; TODO
+                 [primitive-math "0.1.5"] ;; TODO
                  [clj-radix "0.1.0"]
                  [com.googlecode.concurrent-trees/concurrent-trees "2.5.0"] ;; TODO
                  ;;[tesser.core "1.0.0"]
