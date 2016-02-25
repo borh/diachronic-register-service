@@ -118,7 +118,7 @@
 
    :out-dir "data"
 
-   :corpora {:wikipedia {:corpus-file "/data/Wikipedia/jawiki-20160113-text-small.xml"
+   :corpora {:wikipedia {:corpus-file "/data/Wikipedia/jawiki-20160113-text.xml"
                          :metadata-keys #{:corpus :category :basename :title :year}}
              :bccwj {:metadata-dir "/data/BCCWJ-2012-dvd1/DOC/"
                      :corpus-dir "/data/BCCWJ-2012-dvd1/C-XML/VARIABLE/"
