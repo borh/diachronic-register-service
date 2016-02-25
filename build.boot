@@ -153,7 +153,7 @@
    ;;(run-transactor)
    (environ :env config)
    (watch :verbose true)
-   (system :sys #'dev-system :auto-start true :hot-reload true :files ["server.clj"])
+   (system :sys #'dev-system :auto-start true :hot-reload false #_true #_:files #_["server.clj"])
    #_(reload :asset-path "public")
    #_(cljs :source-map true)
    #_(target :dir #{"target"})
